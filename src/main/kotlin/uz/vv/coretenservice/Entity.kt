@@ -73,12 +73,16 @@ class User(
 )
 class Employee(
 
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(nullable = false, unique = true, length = 20, updatable = false)
     var code: String,
 
     @Column(nullable = false)
     @ColumnDefault("true")
     var active: Boolean = true,
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    var position: Position,
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
@@ -133,34 +137,71 @@ class Tenant(
 
 
 @Entity
-@Table(
-    name = "categories",
-    indexes = [
-        Index(name = "idx_category_name", columnList = "name"),
-        Index(name = "idx_category_parent", columnList = "parent_id")
-    ]
-)
-class Category(
+@Table(name = "projects")
+class Project(
 
     @Column(nullable = false, length = 72)
     var name: String,
 
-    @Column(nullable = false, length = 184)
-    var title: String,
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_id")
-    var parent: Category? = null,
+    @Column(columnDefinition = "TEXT")
+    var description: String? = null,
 
     @Column(nullable = false)
-    var isLast: Boolean = true,
+    var active: Boolean = true,
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "tenant_id", nullable = false)
-    var tenant: Tenant
+    var tenant: Tenant,
 
 ) : BaseEntity()
 
+
+
+
+
+
+@Entity
+@Table(name = "boards")
+class Board(
+
+    @Column(nullable = false, length = 72)
+    var name: String,
+
+    @Column(columnDefinition = "TEXT")
+    var description: String? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "project_id", nullable = false)
+    var project: Project,
+
+    @Column(nullable = false)
+    var active: Boolean = true,
+
+    @OneToMany(mappedBy = "board", cascade = [CascadeType.ALL], orphanRemoval = true)
+    var states: MutableList<TaskState> = mutableListOf()
+
+) : BaseEntity()
+
+
+
+@Entity
+@Table(
+    name = "task_states",
+    uniqueConstraints = [UniqueConstraint(columnNames = ["board_id", "code"])]
+)
+
+class TaskState(
+
+    @Column(nullable = false, length = 75)
+    var code: String, // new, process, done
+
+    @Column(nullable = false, length = 75)
+    var name: String,
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "board_id")
+    var board: Board
+) : BaseEntity()
 
 
 
@@ -200,8 +241,8 @@ class Task(
     var state: TaskState,
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "category_id", nullable = false)
-    var category: Category,
+    @JoinColumn(name = "board_id", nullable = false)
+    var board: Board,
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_id", nullable = false)
@@ -224,6 +265,9 @@ class Task(
     var files: MutableSet<File> = mutableSetOf()
 
 ) : BaseEntity()
+
+
+
 
 @Entity
 @Table(name = "files")
@@ -249,17 +293,6 @@ class File(
 
 
 
-@Entity
-@Table(name = "task_states")
-class TaskState(
-
-    @Column(nullable = false, unique = true, length = 75)
-    var code: String, // new, process, done
-
-    @Column(nullable = false, length = 75)
-    var name: String,
-
-    ) : BaseEntity()
 
 
 

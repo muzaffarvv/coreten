@@ -77,6 +77,7 @@ data class PermissionDto(
 )
 
 
+
 data class TenantCreateDTO(
     @field:NotBlank(message = "Company name can't be empty")
     @field:Size(min = 2, max = 72, message = "The name is too short or too long")
@@ -87,9 +88,6 @@ data class TenantCreateDTO(
 
     @field:Size(max = 150, message = "The tagline is too long")
     val tagline: String?,
-
-    @field:NotNull(message = "Please select a subscription plan")
-    val subscriptionPlan: TenantPlan,
 )
 
 data class TenantUpdateDTO(
@@ -103,8 +101,6 @@ data class TenantUpdateDTO(
     val tagline: String?,
 
     val subscriptionPlan: TenantPlan?,
-
-    val active: Boolean?,
 )
 
 data class TenantResponseDTO(
@@ -118,39 +114,101 @@ data class TenantResponseDTO(
 )
 
 
-data class CategoryCreateDTO(
-    @field:NotBlank(message = "Category name is required")
-    @field:Size(min = 2, max = 72, message = "The name is too short or too long")
+
+data class EmployeeCreateDTO(
+    val userId: UUID,
+    val tenantIds: Set<UUID>
+)
+
+data class EmployeeUpdateDTO(
+    val active: Boolean? = null,
+    val position: Position? = null,
+    val tenantIds: Set<UUID>? = null
+)
+
+data class EmployeeResponseDTO(
+    val id: UUID,
+    val code: String,
+    val active: Boolean,
+    val position: Position,
+    val user: UUID,
+    val tenants: Set<UUID>,
+    val createdAt: Instant,
+    val updatedAt: Instant
+)
+
+
+
+data class ProjectCreateDTO(
+
+    @field:NotBlank(message = "Project name is required")
+    @field:Size(min = 2, max = 72, message = "Project name must be between 2 and 72 characters")
     val name: String,
 
-    @field:NotBlank(message = "Title is required")
-    @field:Size(min = 2, max = 184, message = "The title is too short or too long")
-    val title: String,
+    @field:Size(max = 320, message = "Description is too long")
+    val description: String? = null,
 
-    val parentId: UUID?,
+    @field:NotNull(message = "Tenant ID is required")
+    val tenantId: UUID,
+)
 
-    @field:NotNull(message = "Tenant reference is required")
+data class ProjectUpdateDTO(
+
+    @field:Size(min = 2, max = 72, message = "Project name must be between 2 and 72 characters")
+    val name: String?,
+
+    @field:Size(max = 320, message = "Description is too long")
+    val description: String?,
+
+    val active: Boolean?
+)
+
+data class ProjectResponseDTO(
+    val id: UUID,
+    val name: String,
+    val description: String?,
+    val active: Boolean,
     val tenantId: UUID
 )
 
-data class CategoryUpdateDTO(
-    @field:Size(min = 2, max = 72, message = "The name is too short or too long")
+
+
+data class BoardCreateDTO(
+
+    @field:NotBlank(message = "Board name is required")
+    @field:Size(min = 2, max = 72)
+    val name: String,
+
+    @field:Size(max = 320, message = "Description is too long")
+    val description: String? = null,
+
+    @field:NotNull(message = "Project ID is required")
+    val projectId: UUID,
+
+)
+
+data class BoardUpdateDTO(
+
+    @field:Size(min = 2, max = 72)
     val name: String?,
 
-    @field:Size(min = 2, max = 184, message = "The title is too short or too long")
-    val title: String?,
+    @field:Size(max = 320, message = "Description is too long")
+    val description: String?,
 
-    val parentId: UUID?,
+    val active: Boolean?,
+
+    val stateIds: Set<UUID>?
 )
 
-data class CategoryResponseDTO(
+data class BoardResponseDTO(
     val id: UUID,
     val name: String,
-    val title: String,
-    val parentId: UUID?,
-    val tenantId: UUID,
-    val isLast: Boolean
+    val description: String?,
+    val active: Boolean,
+    val projectId: UUID,
+    val states: MutableList<String> // codes
 )
+
 
 
 data class TaskCreateDTO(
@@ -204,19 +262,33 @@ data class TaskResponseDTO(
     val category: UUID,
     val owner: UUID,
     val assignees: Set<UUID>,
-    val state: TaskStateDto,
+    val state: String, // code
     val files: Set<FileDto>
 )
 
 
+
+data class TaskStateCreate(
+    val code: String,
+    val name: String
+)
+
 data class TaskStateDto(
+    val boardId: UUID,
     val code: String,
     val name: String
 
 )
 
+
+
+
 data class FileDto(
     val type: FileType,
     val orgName: String,
     val keyName: String,
+)
+
+data class ChangePositionDTO(
+    val position: Position
 )

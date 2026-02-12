@@ -33,19 +33,6 @@ class PermissionService(private val permissionRepo: PermissionRepo) {
         )
 }
 
-@Service
-class TaskStateService(private val taskStateRepo: TaskStateRepo) {
-
-    fun getByCode(code: String): TaskState? =
-        taskStateRepo.findByCode(code)
-
-    @Transactional
-    fun createIfNotExist(name: String, code: String): TaskState =
-        getByCode(code) ?: taskStateRepo.saveAndRefresh(
-            TaskState(name = name, code = code)
-        )
-}
-
 
 interface BaseService<CreateDto, UpdateDto, ResponseDto> {
     fun create(dto: CreateDto): ResponseDto
@@ -111,7 +98,7 @@ class UserService(
         UserRepo
         >(repo, mapper) {
 
-    fun createUser(dto: UserCreateDTO): UserResponse {
+    override fun create(dto: UserCreateDTO): UserResponse {
         if (repository.existsByPhoneNum(dto.phoneNum)) {
             throw DuplicateResourceException("Phone number already exists")
         }
@@ -174,7 +161,8 @@ class UserService(
 
     @Transactional(readOnly = true)
     fun getByPhoneNum(phoneNum: String): UserResponse {
-        val user = repository.findByPhoneNumAndDeletedFalse(phoneNum) ?: throw UserNotFoundException("User not found with phone number: $phoneNum")
+        val user = repository.findByPhoneNumAndDeletedFalse(phoneNum)
+            ?: throw UserNotFoundException("User not found with phone number: $phoneNum")
         return mapper.toResponse(user)
     }
 
@@ -182,5 +170,189 @@ class UserService(
         repository.findByIdAndDeletedFalse(id) ?: throw UserNotFoundException("User not found with id: $id")
 
 }
+
+@Service
+class TenantService(
+    repo: TenantRepo,
+    mapper: TenantMapper,
+    private val employeeService: EmployeeService
+) : BaseServiceImpl<
+        Tenant,
+        TenantCreateDTO,
+        TenantUpdateDTO,
+        TenantResponseDTO,
+        TenantMapper,
+        TenantRepo
+        >(repo, mapper) {
+
+
+    override fun create(dto: TenantCreateDTO): TenantResponseDTO {
+        validateNameUnique(dto.name)
+
+        val entity = toEntity(dto).apply {
+            maxUsers = subscriptionPlan.maxUsers
+        }
+
+        val saved = repository.save(entity)
+        return mapper.toResponse(saved)
+    }
+
+    override fun toEntity(dto: TenantCreateDTO): Tenant =
+        mapper.toEntity(dto)
+
+    override fun update(id: UUID, dto: TenantUpdateDTO): TenantResponseDTO {
+        val tenant = getByIdOrThrow(id)
+
+        dto.name?.let { validateNameUnique(it, excludeId = id) }
+
+        val updated = updateEntity(dto, tenant)
+
+        if (dto.subscriptionPlan != null) {
+            updated.maxUsers = updated.subscriptionPlan.maxUsers
+        }
+
+        validateSubscriptionLimits(updated)
+
+        val saved = repository.save(updated)
+        return mapper.toResponse(saved)
+    }
+
+    override fun updateEntity(dto: TenantUpdateDTO, entity: Tenant): Tenant =
+        entity.apply {
+            dto.name?.let { name = it }
+            dto.address?.let { address = it }
+            dto.tagline?.let { tagline = it }
+            dto.subscriptionPlan?.let { subscriptionPlan = it }
+        }
+
+    override fun getByIdOrThrow(id: UUID): Tenant =
+        repository.findByIdAndDeletedFalse(id)
+            ?: throw TenantNotFoundException("Tenant not found with id: $id")
+
+    private fun validateNameUnique(name: String, excludeId: UUID? = null) {
+        val exists = if (excludeId == null)
+            repository.existsByNameIgnoreCase(name)
+        else
+            repository.existsByNameIgnoreCaseAndIdNot(name, excludeId)
+
+        if (exists)
+            throw TenantAlreadyExistsException(
+                "Tenant with name '$name' already exists"
+            )
+    }
+
+    private fun validateSubscriptionLimits(tenant: Tenant) {
+        val activeUsers = employeeService.countEmpTenantId(tenant.id!!)
+        val limit = tenant.subscriptionPlan.maxUsers
+
+        if (activeUsers > limit) {
+            throw TenantSubscriptionLimitExceededException(
+                "Current active users ($activeUsers) exceed allowed limit ($limit) for plan ${tenant.subscriptionPlan}"
+            )
+        }
+    }
+}
+
+@Service
+class EmployeeService(
+    private val userRepo: UserRepo,
+    private val tenantRepo: TenantRepo,
+    repo: EmployeeRepo,
+    mapper: EmployeeMapper
+) : BaseServiceImpl<
+        Employee,
+        EmployeeCreateDTO,
+        EmployeeUpdateDTO,
+        EmployeeResponseDTO,
+        EmployeeMapper,
+        EmployeeRepo
+        >(repo, mapper) {
+
+    override fun toEntity(dto: EmployeeCreateDTO): Employee {
+        val user = userRepo.findByIdAndDeletedFalse(dto.userId)
+            ?: throw UserNotFoundException("User not found with id: ${dto.userId}")
+
+        val tenants = tenantRepo.findAllById(dto.tenantIds).toMutableSet()
+
+        val code = "EMP-${EmployeeCodeGenerator.generate(8)}"
+
+        return Employee(
+            code = code,
+            user = user,
+            position = Position.INTERN,
+            tenants = tenants
+        )
+    }
+
+    override fun update(id: UUID, dto: EmployeeUpdateDTO): EmployeeResponseDTO =
+        mapper.toResponse(repository.save(updateEntity(dto, getByIdOrThrow(id))))
+
+    override fun updateEntity(dto: EmployeeUpdateDTO, entity: Employee): Employee =
+        entity.apply {
+            dto.active?.let { active = it }
+            dto.position?.let { position = it }
+            dto.tenantIds?.let {
+                tenants = tenantRepo.findAllById(it).toMutableSet()
+            }
+        }
+
+    override fun getByIdOrThrow(id: UUID): Employee =
+        repository.findByIdAndDeletedFalse(id)
+            ?: throw EmployeeNotFoundException("Employee not found with id: $id")
+
+    @Transactional(readOnly = true)
+    fun countEmpTenantId(tenantId: UUID): Int =
+        repository.countByTenantsIdAndDeletedFalse(tenantId)
+
+    @Transactional
+    fun changePosition(id: UUID, dto: ChangePositionDTO): EmployeeResponseDTO {
+        val employee = getByIdOrThrow(id)
+        employee.position = dto.position
+        return mapper.toResponse(repository.save(employee))
+    }
+}
+
+@Service
+class TaskStateService(private val taskStateRepo: TaskStateRepo) {
+
+    @Transactional
+    fun create(board: Board, dto: TaskStateCreate): TaskStateDto {
+
+        getByCode(board.id!!, dto.code)?.let {
+            throw TaskStateNotFoundException("State with code ${dto.code} already exists in this board")
+        }
+
+        val state = TaskState(
+            code = dto.code,
+            name = dto.name,
+            board = board
+        )
+
+        val saved = taskStateRepo.saveAndRefresh(state)
+        return saved.toResponse()
+    }
+
+    @Transactional
+    fun createDefaultStates(board: Board) {
+        DefaultTaskStates.DEFAULT_STATES.forEach { dto ->
+            createIfNotExist(board, dto.name, dto.code)
+        }
+    }
+
+    fun getByCode(boardId: UUID, code: String): TaskState? =
+        taskStateRepo.findByBoardIdAndCode(boardId, code)
+
+    private fun createIfNotExist(board: Board, name: String, code: String): TaskState =
+        getByCode(board.id!!, code) ?: taskStateRepo.saveAndRefresh(
+            TaskState(
+                name = name,
+                code = code,
+                board = board
+            )
+        )
+}
+
+
+
 
 

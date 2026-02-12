@@ -2,75 +2,6 @@ package uz.vv.coretenservice
 
 import org.springframework.stereotype.Component
 
-/**
-
-fun User.toResponse(): UserResponse = UserResponse(
-    id = this.id!!,
-    firstName = this.firstName,
-    lastName = this.lastName,
-    phoneNum = this.phoneNum,
-    roles = this.roles.map { it.toDto() }.toSet()
-)
-
-fun Role.toDto(): RoleDto = RoleDto(
-    name = this.name,
-    code = this.code,
-    permissions = this.permissions.map { it.toDto() }.toSet()
-)
-fun Permission.toDto(): PermissionDto = PermissionDto(
-    name = this.name,
-    code = this.code
-)
-
-
-
-fun Tenant.toResponse(): TenantResponseDTO = TenantResponseDTO(
-    id = this.id!!,
-    name = this.name,
-    address = this.address,
-    tagline = this.tagline,
-    subscriptionPlan = this.subscriptionPlan,
-    active = this.active,
-    maxUsers = this.maxUsers
-)
-
-
-
-fun Category.toResponse(): CategoryResponseDTO = CategoryResponseDTO(
-    id = this.id!!,
-    name = this.name,
-    title = this.title,
-    parentId = this.parent?.id,
-    tenantId = this.tenant.id!!,
-    isLast = this.isLast
-)
-
-
-
-fun Task.toResponse(): TaskResponseDTO = TaskResponseDTO(
-    id = this.id!!,
-    title = this.title,
-    description = this.description,
-    priority = this.priority,
-    dueDate = this.dueDate,
-    category = this.category.id!!,
-    owner = this.owner.id!!,
-    assignees = this.assignees.map { it.id!! }.toSet(),
-    state = this.state.toDto(),
-    files = this.files.map { it.toDto() }.toSet()
-)
-
-fun TaskState.toDto(): TaskStateDto = TaskStateDto(
-    code = this.code,
-    name = this.name
-)
-fun File.toDto(): FileDto = FileDto(
-    type = this.type,
-    orgName = this.orgName,
-    keyName = this.keyName
-)
-
-*/
 
 interface BaseMapper<E, R> {
 
@@ -114,6 +45,8 @@ fun Permission.toResponse(): PermissionDto =
         code = code
     )
 
+
+
 @Component
 class TenantMapper : BaseMapper<Tenant, TenantResponseDTO> {
 
@@ -133,23 +66,78 @@ class TenantMapper : BaseMapper<Tenant, TenantResponseDTO> {
             name = dto.name,
             address = dto.address,
             tagline = dto.tagline,
-            subscriptionPlan = dto.subscriptionPlan
+            subscriptionPlan = TenantPlan.FREE, // default
+            active = true
         )
 }
+
 
 @Component
-class CategoryMapper : BaseMapper<Category, CategoryResponseDTO> {
+class EmployeeMapper() : BaseMapper<Employee, EmployeeResponseDTO> {
 
-    override fun toResponse(entity: Category): CategoryResponseDTO =
-        CategoryResponseDTO(
+    override fun toResponse(entity: Employee): EmployeeResponseDTO =
+        EmployeeResponseDTO(
             id = entity.id!!,
-            name = entity.name,
-            title = entity.title,
-            parentId = entity.parent?.id,
-            tenantId = entity.tenant.id!!,
-            isLast = entity.isLast
+            code = entity.code,
+            active = entity.active,
+            position = entity.position,
+            user = entity.user.id!!,
+            tenants = entity.tenants.map { it.id!! }.toSet(),
+            createdAt = entity.createdAt!!,
+            updatedAt = entity.updatedAt!!
         )
 }
+
+
+@Component
+class ProjectMapper : BaseMapper<Project, ProjectResponseDTO> {
+
+    override fun toResponse(entity: Project): ProjectResponseDTO =
+        ProjectResponseDTO(
+            id = entity.id!!,
+            name = entity.name,
+            description = entity.description,
+            active = entity.active,
+            tenantId = entity.tenant.id!!
+        )
+
+    fun toEntity(dto: ProjectCreateDTO, tenant: Tenant): Project =
+        Project(
+            name = dto.name,
+            description = dto.description,
+            tenant = tenant
+        )
+}
+
+
+@Component
+class BoardMapper : BaseMapper<Board, BoardResponseDTO> {
+
+    override fun toResponse(entity: Board): BoardResponseDTO =
+        BoardResponseDTO(
+            id = entity.id!!,
+            name = entity.name,
+            description = entity.description,
+            active = entity.active,
+            projectId = entity.project.id!!,
+            states = entity.states.map { it.code }.toMutableList()
+        )
+
+    fun toEntity(
+        dto: BoardCreateDTO,
+        project: Project,
+        states: Set<TaskState>
+    ): Board =
+        Board(
+            name = dto.name,
+            description = dto.description,
+            project = project,
+            active = true,
+        ).apply {
+            this.states = states.toMutableList()
+        }
+}
+
 
 @Component
 class TaskMapper : BaseMapper<Task, TaskResponseDTO> {
@@ -161,16 +149,16 @@ class TaskMapper : BaseMapper<Task, TaskResponseDTO> {
             description = entity.description,
             priority = entity.priority,
             dueDate = entity.dueDate,
-            category = entity.category.id!!,
+            category = entity.board.id!!,
             owner = entity.owner.id!!,
             assignees = entity.assignees.map { it.id!! }.toSet(),
-            state = entity.state.toResponse(),
+            state = entity.state.code,
             files = entity.files.map { it.toResponse() }.toSet()
         )
 }
 
 fun TaskState.toResponse(): TaskStateDto =
-    TaskStateDto(code, name)
+    TaskStateDto(board.id!!, code, name)
 
 fun File.toResponse(): FileDto =
     FileDto(type, orgName, keyName)

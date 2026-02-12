@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.domain.Specification
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor
+import org.springframework.data.jpa.repository.Query
 import org.springframework.data.jpa.repository.support.JpaEntityInformation
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository
 import org.springframework.data.repository.NoRepositoryBean
@@ -65,23 +66,41 @@ interface UserRepo : BaseRepo<User> {
 @Repository
 interface EmployeeRepo : BaseRepo<Employee> {
     fun findByCodeAndDeletedFalse(code: String): Employee?
+    fun countByTenantsIdAndDeletedFalse(tenantId: UUID): Int
 }
 
 @Repository
-interface TenantRepo : BaseRepo<Tenant>
+interface TenantRepo : BaseRepo<Tenant> {
+    fun existsByNameIgnoreCase(name: String): Boolean
+
+    fun existsByNameIgnoreCaseAndIdNot(name: String, id: UUID): Boolean
+}
+
+
 
 @Repository
-interface CategoryRepo : BaseRepo<Category> {
-    fun findAllByTenantIdAndDeletedFalse(tenantId: UUID): List<Category>
+interface ProjectRepo : BaseRepo<Project> {
+    fun findAllByTenantIdAndDeletedFalse(tenantId: UUID): List<Project>
 }
+
+@Repository
+interface BoardRepo : BaseRepo<Board> {
+    fun findAllByProjectIdAndDeletedFalse(projectId: UUID): List<Board>
+}
+
 
 @Repository
 interface TaskRepo : BaseRepo<Task> {
     fun findAllByOwnerIdAndDeletedFalse(ownerId: UUID): List<Task>
 }
 
+
+
 @Repository
 interface FileRepo : BaseRepo<File>
+
+
+
 
 @Repository
 interface RoleRepo : BaseRepo<Role> {
@@ -95,5 +114,7 @@ interface PermissionRepo : BaseRepo<Permission> {
 
 @Repository
 interface TaskStateRepo : BaseRepo<TaskState> {
-    fun findByCode(code: String): TaskState?
+    fun findByBoardIdAndCode(boardId: UUID, code: String): TaskState?
+    fun findAllByBoardId(boardId: UUID): List<TaskState>
 }
+
