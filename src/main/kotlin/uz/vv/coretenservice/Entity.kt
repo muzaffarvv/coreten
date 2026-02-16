@@ -180,7 +180,15 @@ class Board(
     @OneToMany(mappedBy = "board", cascade = [CascadeType.ALL], orphanRemoval = true)
     var states: MutableList<TaskState> = mutableListOf()
 
-) : BaseEntity()
+) : BaseEntity() {
+    fun assignDefaultStates() {
+        if (this.states.isEmpty()) {
+            DefaultTaskStates.DEFAULT_STATES.forEach { dto ->
+                this.states.add(TaskState(name = dto.name, code = dto.code, board = this))
+            }
+        }
+    }
+}
 
 
 

@@ -125,17 +125,13 @@ class BoardMapper : BaseMapper<Board, BoardResponseDTO> {
 
     fun toEntity(
         dto: BoardCreateDTO,
-        project: Project,
-        states: Set<TaskState>
-    ): Board =
-        Board(
+        project: Project
+    ): Board = Board(
             name = dto.name,
             description = dto.description,
             project = project,
             active = true,
-        ).apply {
-            this.states = states.toMutableList()
-        }
+        )
 }
 
 

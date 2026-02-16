@@ -6,10 +6,12 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.domain.Specification
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.jpa.repository.support.JpaEntityInformation
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository
 import org.springframework.data.repository.NoRepositoryBean
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -67,12 +69,20 @@ interface UserRepo : BaseRepo<User> {
 interface EmployeeRepo : BaseRepo<Employee> {
     fun findByCodeAndDeletedFalse(code: String): Employee?
     fun countByTenantsIdAndDeletedFalse(tenantId: UUID): Int
+    fun countByTenantsIdAndActiveTrueAndDeletedFalse(tenantId: UUID): Int
+    // TODO employees by tenantId sql query
+    @Query(""" 
+           SELECT e FROM Employee e
+           JOIN e.tenants t 
+           WHERE t.id = :tenantId AND e.active = true
+           """)
+    fun findActiveByTenantId(@Param("tenantId") tenantId: UUID): List<Employee>
+
 }
 
 @Repository
 interface TenantRepo : BaseRepo<Tenant> {
     fun existsByNameIgnoreCase(name: String): Boolean
-
     fun existsByNameIgnoreCaseAndIdNot(name: String, id: UUID): Boolean
 }
 
@@ -80,24 +90,42 @@ interface TenantRepo : BaseRepo<Tenant> {
 
 @Repository
 interface ProjectRepo : BaseRepo<Project> {
+
+    fun existsByNameAndTenantIdAndDeletedFalse(name: String, tenantId: UUID): Boolean
+
+    fun existsByNameAndTenantIdAndIdNotAndDeletedFalse(name: String, tenantId: UUID, id: UUID): Boolean
+
     fun findAllByTenantIdAndDeletedFalse(tenantId: UUID): List<Project>
 }
 
+
 @Repository
 interface BoardRepo : BaseRepo<Board> {
+
+    fun existsByNameAndProjectIdAndDeletedFalse(name: String, projectId: UUID): Boolean
+
+    fun existsByNameAndProjectIdAndIdNotAndDeletedFalse(name: String, projectId: UUID, id: UUID): Boolean
+
     fun findAllByProjectIdAndDeletedFalse(projectId: UUID): List<Board>
 }
 
 
 @Repository
 interface TaskRepo : BaseRepo<Task> {
-    fun findAllByOwnerIdAndDeletedFalse(ownerId: UUID): List<Task>
+    @Modifying
+    @Query(value = "delete from task_files where file_id = :fileId", nativeQuery = true)
+    fun deleteTaskFileRelations(@Param("fileId") fileId: UUID)
+    fun findAllByBoardIdAndDeletedFalse(boardId: UUID): List<Task>
 }
 
 
 
+
 @Repository
-interface FileRepo : BaseRepo<File>
+interface FileRepo : BaseRepo<File> {
+    fun findByKeyName(keyName: String): File?
+    fun existsByKeyName(keyName: String): Boolean
+}
 
 
 
@@ -114,6 +142,7 @@ interface PermissionRepo : BaseRepo<Permission> {
 
 @Repository
 interface TaskStateRepo : BaseRepo<TaskState> {
+    fun existsByBoardIdAndCode(boardId: UUID, code: String): Boolean
     fun findByBoardIdAndCode(boardId: UUID, code: String): TaskState?
     fun findAllByBoardId(boardId: UUID): List<TaskState>
 }

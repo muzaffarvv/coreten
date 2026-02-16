@@ -5,7 +5,6 @@ import jakarta.validation.constraints.*
 import java.time.Instant
 import java.util.UUID
 
-
 data class UserCreateDTO(
     @field:NotBlank(message = "First name is required")
     @field:Size(min = 2, max = 72, message = "First name must be between 2 and 72 characters")
@@ -197,7 +196,6 @@ data class BoardUpdateDTO(
 
     val active: Boolean?,
 
-    val stateIds: Set<UUID>?
 )
 
 data class BoardResponseDTO(
@@ -226,7 +224,7 @@ data class TaskCreateDTO(
     val dueDate: Instant?,
 
     @field:NotNull(message = "Category selection is required")
-    val categoryId: UUID,
+    val boardId: UUID,
 
     @field:NotNull(message = "Task owner is required")
     val ownerId: UUID,
@@ -248,7 +246,7 @@ data class TaskUpdateDTO(
 
     val stateId: UUID?,
 
-    val categoryId: UUID?,
+    val boardId: UUID?,
 
     val fileIds: Set<UUID>?
 )
@@ -269,8 +267,13 @@ data class TaskResponseDTO(
 
 
 data class TaskStateCreate(
-    val code: String,
-    val name: String
+    val name: String,
+    val code: String
+)
+
+data class TaskStateUpdate(
+    val name: String?,
+    val code: String?
 )
 
 data class TaskStateDto(
@@ -281,8 +284,6 @@ data class TaskStateDto(
 )
 
 
-
-
 data class FileDto(
     val type: FileType,
     val orgName: String,
@@ -291,4 +292,52 @@ data class FileDto(
 
 data class ChangePositionDTO(
     val position: Position
+)
+
+data class LoginRequest(
+    @field:NotBlank(message = "Phone number is required")
+    @field:Pattern(
+        regexp = "^998\\d{9}$|^\\+998\\d{9}$",
+        message = "Please enter a valid phone number (e.g. 998901234567)"
+    )
+    val phoneNum: String,
+
+    @field:NotBlank(message = "Password is required")
+    val password: String
+)
+
+data class RefreshTokenRequest(
+    @field:NotBlank(message = "Refresh token is required")
+    val refreshToken: String
+)
+
+data class SwitchTenantRequest(
+    @field:NotBlank(message = "Tenant ID is required")
+    val tenantId: String
+) {
+    fun getTenantIdAsUUID(): UUID = UUID.fromString(tenantId)
+}
+
+data class AuthResponse(
+    val accessToken: String,
+    val refreshToken: String,
+    val tokenType: String = "Bearer",
+    val expiresIn: Long, // milliseconds
+    val user: UserInfo
+)
+
+data class UserInfo(
+    val userId: UUID,
+    val phoneNum: String,
+    val firstName: String,
+    val lastName: String,
+    val employeeId: UUID?,
+    val currentTenantId: UUID?,
+    val availableTenants: Set<TenantInfo>,
+    val roles: List<String>
+)
+
+data class TenantInfo(
+    val tenantId: UUID,
+    val tenantName: String
 )

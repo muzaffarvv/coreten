@@ -22,11 +22,32 @@ class TenantSubscriptionLimitExceededException(msg: String? = null) : BaseExcept
 
 class EmployeeNotFoundException(msg: String? = null) : BaseException(ErrorCode.EMPLOYEE_NOT_FOUND, msg)
 
+class ProjectNotFoundException(msg: String? = null) : BaseException(ErrorCode.PROJECT_NOT_FOUND, msg)
+class ProjectAlreadyExistsException(msg: String? = null) : BaseException(ErrorCode.PROJECT_ALREADY_EXISTS, msg)
+
+class BoardNotFoundException(msg: String? = null) : BaseException(ErrorCode.BOARD_NOT_FOUND, msg)
+class BoardAlreadyExistsException(msg: String? = null) : BaseException(ErrorCode.BOARD_ALREADY_EXISTS, msg)
+
 class TaskStateNotFoundException(msg: String? = null) : BaseException(ErrorCode.TASK_STATE_NOT_FOUND, msg)
+class TaskStateAlreadyExistsException(msg: String? = null) : BaseException(ErrorCode.TASK_STATE_ALREADY_EXISTS, msg)
+
+class TaskNotFoundException(msg: String? = null) : BaseException(ErrorCode.TASK_NOT_FOUND, msg)
+
+class FileNotFoundException(msg: String? = null) : BaseException(ErrorCode.FILE_NOT_FOUND, msg)
+class FileEmptyException(msg: String? = null) : BaseException(ErrorCode.FILE_EMPTY, msg)
+class FileTooLargeException(msg: String? = null) : BaseException(ErrorCode.FILE_TOO_LARGE, msg)
+class InvalidFileTypeException(msg: String? = null) : BaseException(ErrorCode.INVALID_FILE_TYPE, msg)
+class FileUploadFailedException(msg: String? = null) : BaseException(ErrorCode.FILE_UPLOAD_FAILED, msg)
+class FileKeyGenerationException(msg: String? = null) : BaseException(ErrorCode.FILE_KEY_GENERATION_FAILED, msg)
+
 
 class InvalidPasswordException(msg: String? = null) : BaseException(ErrorCode.INVALID_PASSWORD, msg)
 class PasswordMismatchException(msg: String? = null) : BaseException(ErrorCode.PASSWORDS_DO_NOT_MATCH, msg)
 class DuplicateResourceException(msg: String? = null) : BaseException(ErrorCode.DUPLICATED_RECOURSE, msg)
+class UnauthorizedException(msg: String? = null) : BaseException(ErrorCode.UNAUTHORIZED, msg)
+class BadCredentialsException(msg: String? = null) : BaseException(ErrorCode.BAD_REQUEST, msg)
+
+
 
 data class ResponseVO<T> (
     val status: Int,
@@ -93,3 +114,98 @@ class GlobalExceptionHandler {
         }
     }
 }
+
+
+/**
+ * ============================================================================
+ * SUGGESTED ADDITIONS TO Exception.kt
+ * ============================================================================
+ *
+ * Please add the following to your existing Exception.kt file:
+ *
+ * 1. Add to ErrorCode enum:
+ *    ```kotlin
+ *    UNAUTHORIZED_ACCESS(401),
+ *    TOKEN_EXPIRED(402),
+ *    INVALID_TOKEN(403),
+ *    TENANT_ACCESS_DENIED(407)
+ *    ```
+ *
+ * 2. Add new exception classes:
+ *    ```kotlin
+ *    class UnauthorizedException(msg: String? = null) : BaseException(ErrorCode.UNAUTHORIZED_ACCESS, msg)
+ *    class TokenExpiredException(msg: String? = null) : BaseException(ErrorCode.TOKEN_EXPIRED, msg)
+ *    class InvalidTokenException(msg: String? = null) : BaseException(ErrorCode.INVALID_TOKEN, msg)
+ *    class TenantAccessDeniedException(msg: String? = null) : BaseException(ErrorCode.TENANT_ACCESS_DENIED, msg)
+ *    ```
+ *
+ * 3. Update getHttpStatus() in GlobalExceptionHandler:
+ *    ```kotlin
+ *    private fun getHttpStatus(errorCode: ErrorCode): HttpStatus {
+ *        return when (errorCode) {
+ *            ErrorCode.USER_NOT_FOUND,
+ *            ErrorCode.ROLE_NOT_FOUND,
+ *            ErrorCode.TENANT_NOT_FOUND,
+ *            ErrorCode.EMPLOYEE_NOT_FOUND,
+ *            ErrorCode.PROJECT_NOT_FOUND,
+ *            ErrorCode.BOARD_NOT_FOUND,
+ *            ErrorCode.TASK_NOT_FOUND,
+ *            ErrorCode.TASK_STATE_NOT_FOUND,
+ *            ErrorCode.FILE_NOT_FOUND -> HttpStatus.NOT_FOUND
+ *
+ *            ErrorCode.INVALID_PASSWORD,
+ *            ErrorCode.PASSWORDS_DO_NOT_MATCH,
+ *            ErrorCode.BAD_REQUEST,
+ *            ErrorCode.FILE_EMPTY,
+ *            ErrorCode.FILE_TOO_LARGE,
+ *            ErrorCode.INVALID_FILE_TYPE -> HttpStatus.BAD_REQUEST
+ *
+ *            ErrorCode.DUPLICATED_RECOURSE,
+ *            ErrorCode.TENANT_ALREADY_EXISTS,
+ *            ErrorCode.PROJECT_ALREADY_EXISTS,
+ *            ErrorCode.BOARD_ALREADY_EXISTS,
+ *            ErrorCode.TASK_STATE_ALREADY_EXISTS -> HttpStatus.CONFLICT
+ *
+ *            ErrorCode.UNAUTHORIZED,
+ *            ErrorCode.UNAUTHORIZED_ACCESS,
+ *            ErrorCode.TOKEN_EXPIRED,
+ *            ErrorCode.INVALID_TOKEN,
+ *            ErrorCode.TENANT_ACCESS_DENIED -> HttpStatus.UNAUTHORIZED
+ *
+ *            ErrorCode.TENANT_SUBSCRIPTION_LIMIT_EXCEEDED -> HttpStatus.FORBIDDEN
+ *
+ *            else -> HttpStatus.INTERNAL_SERVER_ERROR
+ *        }
+ *    }
+ *    ```
+ *
+ * 4. Add handler for Spring Security exceptions in GlobalExceptionHandler:
+ *    ```kotlin
+ *    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException::class)
+ *    fun handleBadCredentials(ex: BadCredentialsException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
+ *        val response = ResponseVO<Nothing>(
+ *            status = HttpStatus.UNAUTHORIZED.value(),
+ *            errors = mapOf("message" to (ex.message ?: "Invalid credentials")),
+ *            timestamp = Instant.now(),
+ *            data = null,
+ *            source = request.requestURI
+ *        )
+ *        return ResponseEntity(response, HttpStatus.UNAUTHORIZED)
+ *    }
+ *
+ *    @ExceptionHandler(org.springframework.security.access.AccessDeniedException::class)
+ *    fun handleAccessDenied(ex: AccessDeniedException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
+ *        val response = ResponseVO<Nothing>(
+ *            status = HttpStatus.FORBIDDEN.value(),
+ *            errors = mapOf("message" to "Access denied"),
+ *            timestamp = Instant.now(),
+ *            data = null,
+ *            source = request.requestURI
+ *        )
+ *        return ResponseEntity(response, HttpStatus.FORBIDDEN)
+ *    }
+ *    ```
+ *
+ * ============================================================================
+ */
+
