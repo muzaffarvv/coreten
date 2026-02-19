@@ -48,7 +48,7 @@ class FileKeyGenerationException(msg: String? = null) : BaseException(ErrorCode.
 
 class InvalidPasswordException(msg: String? = null) : BaseException(ErrorCode.INVALID_PASSWORD, msg)
 class PasswordMismatchException(msg: String? = null) : BaseException(ErrorCode.PASSWORDS_DO_NOT_MATCH, msg)
-class DuplicateResourceException(msg: String? = null) : BaseException(ErrorCode.DUPLICATED_RECOURSE, msg)
+class DuplicateResourceException(msg: String? = null) : BaseException(ErrorCode.DUPLICATED_RESOURCE, msg)
 
 class UnauthorizedException(msg: String? = null) : BaseException(ErrorCode.UNAUTHORIZED, msg)
 class BadRequestException(msg: String? = null) : BaseException(ErrorCode.BAD_REQUEST, msg)
@@ -156,6 +156,55 @@ class GlobalExceptionHandler {
         return ResponseEntity(response, HttpStatus.INTERNAL_SERVER_ERROR)
     }
 
+    @ExceptionHandler(org.springframework.security.authorization.AuthorizationDeniedException::class,
+        org.springframework.security.access.AccessDeniedException::class)
+    fun handleAccessDeniedException(ex: Exception, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
+        val response = ResponseVO<Nothing>(
+            status = HttpStatus.FORBIDDEN.value(),
+            errors = mapOf("error" to "You don't have permission to access this resource (Access Denied)"),
+            timestamp = Instant.now(),
+            data = null,
+            source = request.requestURI
+        )
+        return ResponseEntity(response, HttpStatus.FORBIDDEN)
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException::class)
+    fun handleDataIntegrityViolationException(ex: org.springframework.dao.DataIntegrityViolationException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
+        val response = ResponseVO<Nothing>(
+            status = HttpStatus.CONFLICT.value(),
+            errors = mapOf("error" to "Data integrity violation: ${ex.message}"),
+            timestamp = Instant.now(),
+            data = null,
+            source = request.requestURI
+        )
+        return ResponseEntity(response, HttpStatus.CONFLICT)
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException::class)
+    fun handleMediaTypeNotSupported(ex: org.springframework.web.HttpMediaTypeNotSupportedException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
+        val response = ResponseVO<Nothing>(
+            status = HttpStatus.UNSUPPORTED_MEDIA_TYPE.value(),
+            errors = mapOf("error" to "Unsupported media type: ${ex.contentType}"),
+            timestamp = Instant.now(),
+            data = null,
+            source = request.requestURI
+        )
+        return ResponseEntity(response, HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException::class)
+    fun handleMaxSizeException(ex: org.springframework.web.multipart.MaxUploadSizeExceededException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
+        val response = ResponseVO<Nothing>(
+            status = HttpStatus.PAYLOAD_TOO_LARGE.value(),
+            errors = mapOf("error" to "File size exceeds the limit"),
+            timestamp = Instant.now(),
+            data = null,
+            source = request.requestURI
+        )
+        return ResponseEntity(response, HttpStatus.PAYLOAD_TOO_LARGE)
+    }
+
     private fun logError(ex: Exception, request: HttpServletRequest, status: HttpStatus) {
         if (status.is5xxServerError) {
             logger.error("Status: {} | URI: {} | Message: {}", status.value(), request.requestURI, ex.message)
@@ -180,7 +229,7 @@ class GlobalExceptionHandler {
             ErrorCode.PROJECT_ALREADY_EXISTS,
             ErrorCode.BOARD_ALREADY_EXISTS,
             ErrorCode.TASK_STATE_ALREADY_EXISTS,
-            ErrorCode.DUPLICATED_RECOURSE -> HttpStatus.CONFLICT
+            ErrorCode.DUPLICATED_RESOURCE -> HttpStatus.CONFLICT
 
             ErrorCode.INVALID_PASSWORD,
             ErrorCode.PASSWORDS_DO_NOT_MATCH,

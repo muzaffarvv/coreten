@@ -185,7 +185,8 @@ abstract class BaseServiceImpl<
 class UserService(
     repo: UserRepo,
     mapper: UserMapper,
-    private val passwordEncoder: PasswordEncoder
+    private val passwordEncoder: PasswordEncoder,
+    private val roleService: RoleService
 ) : BaseServiceImpl<
         User,
         UserCreateDTO,
@@ -206,6 +207,8 @@ class UserService(
         }
 
         val user = toEntity(dto)
+        user.roles.add(roleService.getByCode("PLATFORM_USER"))
+
         return mapper.toResponse(repository.saveAndRefresh(user))
     }
 
@@ -228,7 +231,6 @@ class UserService(
             dto.lastName?.let { lastName = it }
         }
 
-    // Parol va telefon raqamini yangilash — tranzaksiya ichida bajariladi
     @Transactional
     fun updateSecurity(id: UUID, dto: UserUpdateSecurity): UserResponse {
         val user = updateSecurityEntity(dto, getByIdOrThrow(id))

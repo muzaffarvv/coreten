@@ -38,13 +38,13 @@ jwt:
   issuer: ${JWT_ISSUER:coreten-service}
   token-type: Bearer
 
-  # 3 600 000 ms = 60 minut = 1 soat
+  # 3 600 000 ms = 60 minute = 1 hour
   access-token-expiration-ms: ${JWT_ACCESS_EXPIRATION:3600000}
 
-#    # 30 000 ms = 30 soniya
+#    # 30 000 ms = 30 second for testing
 #    access-token-expiration-ms: ${JWT_ACCESS_EXPIRATION:30000}
 
-  # 604 800 000 ms = 10 080 minut = 168 soat = 7 kun
+  # 604 800 000 ms = 10 080 minute = 168 hour = 7 kun
   refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000}
 
 logging:
