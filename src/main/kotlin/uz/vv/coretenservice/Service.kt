@@ -49,11 +49,14 @@ class PermissionService(private val permissionRepo: PermissionRepo) {
 class TaskStateService(
     private val taskStateRepo: TaskStateRepo,
     private val boardService: BoardService,
+    private val tenantSecurityService: TenantSecurityService
 ) {
 
     @Transactional(readOnly = true)
-    fun getAllByBoardId(boardId: UUID): List<TaskState> =
-        taskStateRepo.findAllByBoardId(boardId)
+    fun getAllByBoardId(boardId: UUID): List<TaskState> {
+        val board = boardService.getBoard(boardId)
+        return taskStateRepo.findAllByBoardId(board.id!!)
+    }
 
     @Transactional(readOnly = true)
     fun getByCode(boardId: UUID, code: String): TaskState =
@@ -62,9 +65,17 @@ class TaskStateService(
 
 
     @Transactional(readOnly = true)
-    fun getByIdOrThrow(id: UUID): TaskState =
-        taskStateRepo.findByIdAndDeletedFalse(id)
+    fun getByIdOrThrow(id: UUID): TaskState {
+        val state = taskStateRepo.findByIdAndDeletedFalse(id)
             ?: throw TaskStateNotFoundException("State not found with id: $id")
+
+        tenantSecurityService.validateEntityTenantAccess(
+            state.board.project.tenant.id,
+            "TaskState"
+        )
+
+        return state
+    }
 
     @Transactional
     fun create(boardId: UUID, dto: TaskStateCreate): TaskStateDto {
@@ -114,16 +125,7 @@ class TaskStateService(
         taskStateRepo.trash(state.id!!)
     }
 
-    /*
-        @Transactional
-        fun detachState(stateId: UUID): TaskStateDto {
-            val state = getByIdOrThrow(stateId)
-
-            state.board = null // ⚠️
-
-            return taskStateRepo.saveAndRefresh(state).toResponse()
-        }
-    */
+    // detachState o'chirildi: board maydoni non-nullable, state boardsiz mavjud bo'la olmaydi
 
     private fun getBoard(boardId: UUID) =
         boardService.getBoard(boardId)
@@ -139,7 +141,6 @@ interface BaseService<CreateDto, UpdateDto, ResponseDto> {
     fun update(id: UUID, dto: UpdateDto): ResponseDto
     fun getById(id: UUID): ResponseDto
     fun getAllList(): List<ResponseDto>
-    fun getAll(pageable: Pageable): Page<ResponseDto>
     fun delete(id: UUID)
 }
 
@@ -172,10 +173,6 @@ abstract class BaseServiceImpl<
     @Transactional(readOnly = true)
     override fun getAllList(): List<ResponseDto> =
         repository.findAllNotDeleted().map(mapper::toResponse)
-
-    @Transactional(readOnly = true)
-    override fun getAll(pageable: Pageable): Page<ResponseDto> =
-        repository.findAllNotDeleted(pageable).map { mapper.toResponse(it) }
 
     @Transactional
     override fun delete(id: UUID) {
@@ -231,6 +228,8 @@ class UserService(
             dto.lastName?.let { lastName = it }
         }
 
+    // Parol va telefon raqamini yangilash — tranzaksiya ichida bajariladi
+    @Transactional
     fun updateSecurity(id: UUID, dto: UserUpdateSecurity): UserResponse {
         val user = updateSecurityEntity(dto, getByIdOrThrow(id))
         val saved = repository.save(user)
@@ -238,11 +237,23 @@ class UserService(
     }
 
     private fun updateSecurityEntity(dto: UserUpdateSecurity, entity: User): User = entity.apply {
-        dto.phoneNum?.let { phoneNum = it }
+
+        dto.phoneNum?.let { newPhone ->
+            if (newPhone != phoneNum) {
+                if (repository.existsByPhoneNum(newPhone)) {
+                    throw DuplicateResourceException(
+                        "User already exists with phone number $newPhone"
+                    )
+                }
+                phoneNum = newPhone
+            }
+        }
 
         val newPass = dto.newPassword ?: return@apply
 
-        if (dto.oldPassword.isNullOrBlank() || !passwordEncoder.matches(dto.oldPassword, password)) {
+        if (dto.oldPassword.isNullOrBlank() ||
+            !passwordEncoder.matches(dto.oldPassword, password)
+        ) {
             throw InvalidPasswordException("The old password was entered incorrectly")
         }
 
@@ -354,6 +365,7 @@ class TenantService(
 class EmployeeService(
     private val userRepo: UserRepo,
     private val tenantRepo: TenantRepo,
+    private val tenantSecurityService: TenantSecurityService,
     repo: EmployeeRepo,
     mapper: EmployeeMapper
 ) : BaseServiceImpl<
@@ -381,6 +393,14 @@ class EmployeeService(
         )
     }
 
+    // Xavfsizlik: getByIdOrThrow() ichida TenantContext orqali tenant tekshiruvi amalga oshiriladi
+    @Transactional(readOnly = true)
+    fun getPosition(id: UUID): Position = getByIdOrThrow(id).position
+
+    @Transactional(readOnly = true)
+    fun getEmployee(id: UUID): Employee = getByIdOrThrow(id)
+
+    @Transactional
     override fun update(id: UUID, dto: EmployeeUpdateDTO): EmployeeResponseDTO =
         mapper.toResponse(repository.save(updateEntity(dto, getByIdOrThrow(id))))
 
@@ -399,14 +419,24 @@ class EmployeeService(
         return mapper.toListResponse(employees)
     }
 
-    override fun getByIdOrThrow(id: UUID): Employee =
-        repository.findByIdAndDeletedFalse(id)
+    override fun getByIdOrThrow(id: UUID): Employee {
+        val employee = repository.findByIdAndDeletedFalse(id)
             ?: throw EmployeeNotFoundException("Employee not found with id: $id")
+
+        val currentTenantId = TenantContext.getTenantIdOrNull()
+
+        if (employee.tenants.none { it.id == currentTenantId }) {
+            throw UnauthorizedException("Employee does not belong to current tenant")
+        }
+
+        return employee
+    }
 
     @Transactional(readOnly = true)
     fun countActiveByTenantId(tenantId: UUID): Int =
         repository.countByTenantsIdAndActiveTrueAndDeletedFalse(tenantId)
 
+    // Xavfsizlik: getByIdOrThrow() ichida tenant tekshiruvi bajariladi
     @Transactional
     fun changePosition(id: UUID, dto: ChangePositionDTO): EmployeeResponseDTO {
         val employee = getByIdOrThrow(id)
@@ -419,7 +449,8 @@ class EmployeeService(
 class ProjectService(
     repository: ProjectRepo,
     mapper: ProjectMapper,
-    private val tenantService: TenantService
+    private val tenantService: TenantService,
+    private val tenantSecurityService: TenantSecurityService
 ) : BaseServiceImpl<
         Project,
         ProjectCreateDTO,
@@ -468,9 +499,17 @@ class ProjectService(
     @Transactional(readOnly = true)
     fun getProject(id: UUID): Project = getByIdOrThrow(id)
 
-    override fun getByIdOrThrow(id: UUID): Project =
-        repository.findByIdAndDeletedFalse(id)
+    override fun getByIdOrThrow(id: UUID): Project {
+        val project = repository.findByIdAndDeletedFalse(id)
             ?: throw ProjectNotFoundException("Project not found with id: $id")
+
+        tenantSecurityService.validateEntityTenantAccess(
+            project.tenant.id,
+            "Project"
+        )
+
+        return project
+    }
 
     private fun checkNameUniqueness(name: String, tenantId: UUID, excludeId: UUID? = null) {
         val exists = if (excludeId == null) {
@@ -488,6 +527,7 @@ class BoardService(
     repo: BoardRepo,
     mapper: BoardMapper,
     private val projectService: ProjectService,
+    private val tenantSecurityService: TenantSecurityService
 ) : BaseServiceImpl<
         Board,
         BoardCreateDTO,
@@ -531,9 +571,18 @@ class BoardService(
         }
 
     @Transactional(readOnly = true)
-    override fun getByIdOrThrow(id: UUID): Board =
-        repository.findByIdAndDeletedFalse(id)
+    override fun getByIdOrThrow(id: UUID): Board {
+        val board = repository.findByIdAndDeletedFalse(id)
             ?: throw BoardNotFoundException("Board not found with id $id")
+
+        tenantSecurityService.validateEntityTenantAccess(
+            board.project.tenant.id,
+            "Board"
+        )
+
+        return board
+    }
+
 
     @Transactional(readOnly = true)
     fun getBoard(id: UUID): Board = getByIdOrThrow(id)
@@ -703,7 +752,8 @@ class TaskService(
     private val boardService: BoardService,
     private val employeeService: EmployeeService,
     private val taskStateService: TaskStateService,
-    private val fileService: FileService
+    private val fileService: FileService,
+    private val tenantSecurityService: TenantSecurityService
 ) : BaseServiceImpl<
         Task,
         TaskCreateDTO,
@@ -722,7 +772,8 @@ class TaskService(
     override fun toEntity(dto: TaskCreateDTO): Task {
         val board = boardService.getBoard(dto.boardId)
         val defaultState = taskStateService.getByCode(board.id!!, "NEW")
-        val owner = employeeService.getCurrentEmployee() // todo get from context
+        val ownerId = TenantContext.getEmployeeIdOrThrow()
+        val owner = employeeService.getEmployee(ownerId)
 
         val files = dto.fileIds
             .let { fileService.getAllByIds(it.toList()) }
@@ -756,7 +807,7 @@ class TaskService(
         dto.stateId?.let {
             val newState = taskStateService.getByIdOrThrow(it)
             if (newState.board.id != entity.board.id)
-                throw IllegalStateException("State does not belong to this task's board")
+                throw TaskStateMismatchException("State does not belong to this task's board")
             entity.state = newState
         }
 
@@ -777,32 +828,44 @@ class TaskService(
         return entity
     }
 
-    @Transactional(readOnly = true)
-    override fun getByIdOrThrow(id: UUID): Task =
-        repository.findByIdAndDeletedFalse(id)
+    override fun getByIdOrThrow(id: UUID): Task {
+        val task = repository.findByIdAndDeletedFalse(id)
             ?: throw TaskNotFoundException("Task not found with ID: $id")
 
-//    @Transactional
-//    fun assignEmployee(taskId: UUID, employeeId: UUID): TaskResponseDTO {
-//        // todo biriktirilayotgan employee shu tenantda ishlaydimi check qilish kerak
-//        // todo get emp id va tenant id from context
-//        val task = getByIdOrThrow(taskId)
-//        val employee = employeeService.getByIdOrThrow(employeeId)
-//
-//        task.assignedEmployees.add(employee)
-//
-//        return mapper.toResponse(taskRepo.saveAndRefresh(task))
-//    }
-//
-//    @Transactional
-//    fun unassignEmployee(taskId: UUID, employeeId: UUID): TaskResponseDTO {
-//        val task = getByIdOrThrow(taskId)
-//
-//        val removed = task.assignedEmployees.removeIf { it.id == employeeId }
-//        if (!removed) throw EmployeeNotFoundException("Employee not assigned to task")
-//
-//        return mapper.toResponse(taskRepo.saveAndRefresh(task))
-//    }
+        tenantSecurityService.validateEntityTenantAccess(
+            task.board.project.tenant.id,
+            "Task"
+        )
+
+        return task
+    }
+
+    // Employee biriktirilayotganda tenant tekshiruvi employeeService.getEmployee() ichida bajariladi
+    // ya'ni employee joriy tenantga tegishli ekanligini getByIdOrThrow() kafolatlaydi
+    @Transactional
+    fun assignEmployee(taskId: UUID, employeeId: UUID): TaskResponseDTO {
+        val task = getByIdOrThrow(taskId)
+        // Employee'ni context orqali tenant tekshiruvidan o'tkazamiz
+        val employee = employeeService.getEmployee(employeeId)
+
+        if (task.assignees.any { it.id == employee.id }) {
+            throw BadRequestException("Employee is already assigned to this task")
+        }
+
+        task.assignees.add(employee)
+
+        return mapper.toResponse(repository.saveAndRefresh(task))
+    }
+
+    @Transactional
+    fun unassignEmployee(taskId: UUID, employeeId: UUID): TaskResponseDTO {
+        val task = getByIdOrThrow(taskId)
+
+        val removed = task.assignees.removeIf { it.id == employeeId }
+        if (!removed) throw EmployeeNotFoundException("Employee not assigned to task")
+
+        return mapper.toResponse(repository.saveAndRefresh(task))
+    }
 
     @Transactional
     fun changeState(taskId: UUID, newStateCode: String): TaskResponseDTO {
@@ -862,173 +925,11 @@ class TenantSecurityService {
         return TenantContext.getTenantId()
     }
 
-    /**
-     * Validate that entity belongs to current tenant
-     * Use this pattern in services:
-     *
-     * Example:
-     * ```
-     * val project = projectRepo.findById(id) ?: throw NotFoundException()
-     * tenantSecurityService.validateTenantAccess(project.tenant.id)
-     * ```
-     */
     fun validateEntityTenantAccess(entityTenantId: UUID?, entityType: String = "Resource") {
         try {
             validateTenantAccess(entityTenantId)
         } catch (e: UnauthorizedException) {
             throw UnauthorizedException("$entityType access denied: belongs to different tenant ${e.message}")
         }
-    }
-}
-
-@Service
-class AuthService(
-    private val userRepo: UserRepo,
-    private val employeeRepo: EmployeeRepo,
-    private val roleService: RoleService,
-    private val passwordEncoder: PasswordEncoder,
-    private val jwtProvider: JwtProvider,
-    private val jwtProperties: JwtProperties,
-    private val customUserDetailsService: CustomUserDetailsService
-) {
-
-    private val logger = LoggerFactory.getLogger(AuthService::class.java)
-
-    @Transactional
-    fun register(dto: UserCreateDTO): AuthResponse {
-
-        if (userRepo.existsByPhoneNum(dto.phoneNum)) {
-            throw DuplicateResourceException("User already exists with phone number: ${dto.phoneNum}")
-        }
-
-        if (dto.password != dto.confirmPassword) {
-            throw PasswordMismatchException("Passwords do not match")
-        }
-
-        val user = User(
-            firstName = dto.firstName,
-            lastName = dto.lastName ?: "",
-            phoneNum = dto.phoneNum,
-            password = passwordEncoder.encode(dto.password)
-        )
-
-        try {
-            val userRole = roleService.getByCode("USER")
-            user.roles.add(userRole)
-        } catch (e: RoleNotFoundException) {
-            logger.warn("Default USER role not found. User created without roles. $e.message")
-        }
-
-        val savedUser = userRepo.save(user)
-
-        val userDetails = customUserDetailsService.loadCustomUserByPhoneNum(savedUser.phoneNum)
-
-        return buildAuthResponse(userDetails, null)
-    }
-
-    @Transactional(readOnly = true)
-    fun login(request: LoginRequest): AuthResponse {
-
-        val userDetails = try {
-            customUserDetailsService.loadCustomUserByPhoneNum(request.phoneNum)
-        } catch (e: UsernameNotFoundException) {
-            throw BadCredentialsException("Invalid phone number or password + $e.message")
-        }
-
-        if (!passwordEncoder.matches(request.password, userDetails.password)) {
-            throw BadCredentialsException("Invalid phone number or password")
-        }
-
-        if (!userDetails.isEnabled) {
-            throw BadCredentialsException("Account is disabled")
-        }
-
-        val defaultTenantId = userDetails.getDefaultTenantId()
-
-        logger.info("User ${userDetails.username} logged in successfully with tenant: $defaultTenantId")
-
-        return buildAuthResponse(userDetails, defaultTenantId)
-    }
-
-    @Transactional(readOnly = true)
-    fun refreshToken(request: RefreshTokenRequest): AuthResponse {
-        val refreshToken = request.refreshToken
-
-        if (!jwtProvider.validateToken(refreshToken)) {
-            throw BadCredentialsException("Invalid or expired refresh token")
-        }
-
-        if (!jwtProvider.isRefreshToken(refreshToken)) {
-            throw BadCredentialsException("Provided token is not a refresh token")
-        }
-
-        val userId = jwtProvider.getUserIdFromToken(refreshToken)
-            ?: throw BadCredentialsException("Invalid refresh token")
-
-        val user = userRepo.findByIdAndDeletedFalse(userId)
-            ?: throw UsernameNotFoundException("User not found")
-
-        val userDetails = customUserDetailsService.loadCustomUserByPhoneNum(user.phoneNum)
-
-        // Maintain the same tenant context if possible
-        val currentTenantId = userDetails.getDefaultTenantId()
-
-        logger.info("Token refreshed for user: ${user.phoneNum}")
-
-        return buildAuthResponse(userDetails, currentTenantId)
-    }
-
-    @Transactional(readOnly = true)
-    fun switchTenant(request: SwitchTenantRequest, currentUserId: UUID): AuthResponse {
-        val targetTenantId = request.getTenantIdAsUUID()
-
-        val user = userRepo.findByIdAndDeletedFalse(currentUserId)
-            ?: throw UserNotFoundException("User not found")
-
-        val userDetails = customUserDetailsService.loadCustomUserByPhoneNum(user.phoneNum)
-
-        if (!userDetails.hasAccessToTenant(targetTenantId)) {
-            throw UnauthorizedException("You don't have access to this tenant")
-        }
-
-        logger.info("User ${user.phoneNum} switched to tenant: $targetTenantId")
-
-        return buildAuthResponse(userDetails, targetTenantId)
-    }
-
-    private fun buildAuthResponse(
-        userDetails: CustomUserDetails,
-        currentTenantId: UUID?
-    ): AuthResponse {
-        val accessToken = jwtProvider.generateAccessToken(userDetails, currentTenantId)
-        val refreshToken = jwtProvider.generateRefreshToken(userDetails.userId)
-
-        val tenantInfos = if (userDetails.employeeId != null) {
-            val employee = employeeRepo.findByIdAndDeletedFalse(userDetails.employeeId)
-            employee?.tenants?.map {
-                TenantInfo(it.id!!, it.name)
-            }?.toSet() ?: emptySet()
-        } else {
-            emptySet()
-        }
-
-        val userInfo = UserInfo(
-            userId = userDetails.userId,
-            phoneNum = userDetails.username,
-            firstName = userDetails.firstName,
-            lastName = userDetails.lastName,
-            employeeId = userDetails.employeeId,
-            currentTenantId = currentTenantId,
-            availableTenants = tenantInfos,
-            roles = userDetails.authorities.map { it.authority }
-        )
-
-        return AuthResponse(
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            tokenType = jwtProperties.tokenType,
-            expiresIn = jwtProperties.accessTokenExpiration,
-            user = userInfo
-        )
     }
 }

@@ -57,6 +57,7 @@ enum class ErrorCode(code: Int) {
 
     TASK_STATE_NOT_FOUND(250),
     TASK_STATE_ALREADY_EXISTS(251),
+    TASK_STATE_MISMATCH(252),
 
 
     FILE_NOT_FOUND(450),
@@ -74,6 +75,7 @@ enum class ErrorCode(code: Int) {
     DUPLICATED_RECOURSE(101),
 
     BAD_REQUEST(400),
+    BAD_CREDENTIALS(401),
 
     UNAUTHORIZED(303)
 }

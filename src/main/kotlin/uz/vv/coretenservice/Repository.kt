@@ -19,9 +19,8 @@ import java.util.*
 @NoRepositoryBean
 interface BaseRepo<T : BaseEntity> : JpaRepository<T, UUID>, JpaSpecificationExecutor<T> {
     fun findByIdAndDeletedFalse(id: UUID): T?
-    fun trash(id: UUID): Boolean
+    fun trash(id: UUID)
     fun findAllNotDeleted(): List<T>
-    fun findAllNotDeleted(pageable: Pageable): Page<T>
     fun saveAndRefresh(entity: T): T
 }
 
@@ -40,15 +39,14 @@ class BaseRepoImpl<T : BaseEntity>(
         }).orElse(null)
 
     @Transactional
-    override fun trash(id: UUID): Boolean = findById(id).map { entity ->
+    override fun trash(id: UUID) {
+        findById(id).map { entity ->
             entity.deleted = true
             save(entity)
-            true
-    }.orElse(false)
+        }
+    }
 
     override fun findAllNotDeleted(): List<T> = findAll(notDeleted)
-
-    override fun findAllNotDeleted(pageable: Pageable): Page<T> = findAll(notDeleted, pageable)
 
     @Transactional
     override fun saveAndRefresh(entity: T): T {
@@ -70,7 +68,10 @@ interface EmployeeRepo : BaseRepo<Employee> {
     fun findByCodeAndDeletedFalse(code: String): Employee?
     fun countByTenantsIdAndDeletedFalse(tenantId: UUID): Int
     fun countByTenantsIdAndActiveTrueAndDeletedFalse(tenantId: UUID): Int
-    // TODO employees by tenantId sql query
+
+    // User ID bo'yicha employee topish — CustomUserDetailsService da N+1 oldini oladi
+    fun findByUserIdAndDeletedFalse(userId: UUID): Employee?
+
     @Query(""" 
            SELECT e FROM Employee e
            JOIN e.tenants t 

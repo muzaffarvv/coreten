@@ -1,12 +1,16 @@
 package uz.vv.coretenservice
 
 import jakarta.servlet.http.HttpServletRequest
-import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.HttpRequestMethodNotSupportedException
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.slf4j.LoggerFactory
+import java.time.Instant
 
 sealed class BaseException(
     val errorCode: ErrorCode,
@@ -30,6 +34,7 @@ class BoardAlreadyExistsException(msg: String? = null) : BaseException(ErrorCode
 
 class TaskStateNotFoundException(msg: String? = null) : BaseException(ErrorCode.TASK_STATE_NOT_FOUND, msg)
 class TaskStateAlreadyExistsException(msg: String? = null) : BaseException(ErrorCode.TASK_STATE_ALREADY_EXISTS, msg)
+class TaskStateMismatchException(msg: String? = null) : BaseException(ErrorCode.TASK_STATE_MISMATCH, msg)
 
 class TaskNotFoundException(msg: String? = null) : BaseException(ErrorCode.TASK_NOT_FOUND, msg)
 
@@ -44,8 +49,10 @@ class FileKeyGenerationException(msg: String? = null) : BaseException(ErrorCode.
 class InvalidPasswordException(msg: String? = null) : BaseException(ErrorCode.INVALID_PASSWORD, msg)
 class PasswordMismatchException(msg: String? = null) : BaseException(ErrorCode.PASSWORDS_DO_NOT_MATCH, msg)
 class DuplicateResourceException(msg: String? = null) : BaseException(ErrorCode.DUPLICATED_RECOURSE, msg)
+
 class UnauthorizedException(msg: String? = null) : BaseException(ErrorCode.UNAUTHORIZED, msg)
-class BadCredentialsException(msg: String? = null) : BaseException(ErrorCode.BAD_REQUEST, msg)
+class BadRequestException(msg: String? = null) : BaseException(ErrorCode.BAD_REQUEST, msg)
+class BadCredentialsException(msg: String? = null) : BaseException(ErrorCode.BAD_CREDENTIALS, msg)
 
 
 
@@ -60,12 +67,19 @@ data class ResponseVO<T> (
 @RestControllerAdvice
 class GlobalExceptionHandler {
 
+    private val logger = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
+
     @ExceptionHandler(BaseException::class)
     fun handleBaseException(ex: BaseException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
         val status = getHttpStatus(ex.errorCode)
+        logError(ex, request, status)
+
         val response = ResponseVO<Nothing>(
             status = status.value(),
-            errors = mapOf("code" to ex.errorCode.name, "message" to (ex.message ?: "Error occurred")),
+            errors = mapOf(
+                "code" to ex.errorCode.name,
+                "message" to (ex.message ?: "An error occurred during the operation")
+            ),
             timestamp = Instant.now(),
             data = null,
             source = request.requestURI
@@ -75,7 +89,9 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleValidationException(ex: MethodArgumentNotValidException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
-        val errors = ex.bindingResult.fieldErrors.associate { it.field to (it.defaultMessage ?: "Invalid value") }
+        val errors = ex.bindingResult.fieldErrors.associate {
+            it.field to (it.defaultMessage ?: "Invalid value provided")
+        }
 
         val response = ResponseVO<Nothing>(
             status = HttpStatus.BAD_REQUEST.value(),
@@ -87,11 +103,52 @@ class GlobalExceptionHandler {
         return ResponseEntity(response, HttpStatus.BAD_REQUEST)
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun handleReadableException(ex: HttpMessageNotReadableException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
+        val response = ResponseVO<Nothing>(
+            status = HttpStatus.BAD_REQUEST.value(),
+            errors = mapOf("error" to "The JSON request is malformed or has an invalid format"),
+            timestamp = Instant.now(),
+            data = null,
+            source = request.requestURI
+        )
+        return ResponseEntity(response, HttpStatus.BAD_REQUEST)
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun handleTypeMismatchException(ex: MethodArgumentTypeMismatchException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
+        val response = ResponseVO<Nothing>(
+            status = HttpStatus.BAD_REQUEST.value(),
+            errors = mapOf(
+                "parameter" to ex.name,
+                "message" to "The parameter type is incorrect"
+            ),
+            timestamp = Instant.now(),
+            data = null,
+            source = request.requestURI
+        )
+        return ResponseEntity(response, HttpStatus.BAD_REQUEST)
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
+    fun handleMethodNotSupported(ex: HttpRequestMethodNotSupportedException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
+        val response = ResponseVO<Nothing>(
+            status = HttpStatus.METHOD_NOT_ALLOWED.value(),
+            errors = mapOf("error" to "The HTTP method ${ex.method} is not supported for this API"),
+            timestamp = Instant.now(),
+            data = null,
+            source = request.requestURI
+        )
+        return ResponseEntity(response, HttpStatus.METHOD_NOT_ALLOWED)
+    }
+
     @ExceptionHandler(Exception::class)
     fun handleAllExceptions(ex: Exception, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
+        logger.error("INTERNAL SERVER ERROR at ${request.requestURI}: ", ex)
+
         val response = ResponseVO<Nothing>(
             status = HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            errors = mapOf("error" to (ex.message ?: "Internal Server Error")),
+            errors = mapOf("error" to "An unexpected internal server error occurred. Please contact support."),
             timestamp = Instant.now(),
             data = null,
             source = request.requestURI
@@ -99,113 +156,44 @@ class GlobalExceptionHandler {
         return ResponseEntity(response, HttpStatus.INTERNAL_SERVER_ERROR)
     }
 
+    private fun logError(ex: Exception, request: HttpServletRequest, status: HttpStatus) {
+        if (status.is5xxServerError) {
+            logger.error("Status: {} | URI: {} | Message: {}", status.value(), request.requestURI, ex.message)
+        } else {
+            logger.warn("Status: {} | URI: {} | Message: {}", status.value(), request.requestURI, ex.message)
+        }
+    }
+
     private fun getHttpStatus(errorCode: ErrorCode): HttpStatus {
         return when (errorCode) {
             ErrorCode.USER_NOT_FOUND,
             ErrorCode.ROLE_NOT_FOUND,
-            ErrorCode.TENANT_NOT_FOUND -> HttpStatus.NOT_FOUND
+            ErrorCode.TENANT_NOT_FOUND,
+            ErrorCode.EMPLOYEE_NOT_FOUND,
+            ErrorCode.PROJECT_NOT_FOUND,
+            ErrorCode.BOARD_NOT_FOUND,
+            ErrorCode.TASK_STATE_NOT_FOUND,
+            ErrorCode.TASK_NOT_FOUND,
+            ErrorCode.FILE_NOT_FOUND -> HttpStatus.NOT_FOUND
+
+            ErrorCode.TENANT_ALREADY_EXISTS,
+            ErrorCode.PROJECT_ALREADY_EXISTS,
+            ErrorCode.BOARD_ALREADY_EXISTS,
+            ErrorCode.TASK_STATE_ALREADY_EXISTS,
+            ErrorCode.DUPLICATED_RECOURSE -> HttpStatus.CONFLICT
 
             ErrorCode.INVALID_PASSWORD,
-            ErrorCode.PASSWORDS_DO_NOT_MATCH -> HttpStatus.BAD_REQUEST
+            ErrorCode.PASSWORDS_DO_NOT_MATCH,
+            ErrorCode.FILE_EMPTY,
+            ErrorCode.INVALID_FILE_TYPE,
+            ErrorCode.BAD_CREDENTIALS,
+            ErrorCode.BAD_REQUEST -> HttpStatus.BAD_REQUEST
 
-            ErrorCode.DUPLICATED_RECOURSE -> HttpStatus.CONFLICT
+            ErrorCode.UNAUTHORIZED -> HttpStatus.UNAUTHORIZED
+            ErrorCode.TENANT_SUBSCRIPTION_LIMIT_EXCEEDED -> HttpStatus.FORBIDDEN
+            ErrorCode.FILE_TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE
 
             else -> HttpStatus.INTERNAL_SERVER_ERROR
         }
     }
 }
-
-
-/**
- * ============================================================================
- * SUGGESTED ADDITIONS TO Exception.kt
- * ============================================================================
- *
- * Please add the following to your existing Exception.kt file:
- *
- * 1. Add to ErrorCode enum:
- *    ```kotlin
- *    UNAUTHORIZED_ACCESS(401),
- *    TOKEN_EXPIRED(402),
- *    INVALID_TOKEN(403),
- *    TENANT_ACCESS_DENIED(407)
- *    ```
- *
- * 2. Add new exception classes:
- *    ```kotlin
- *    class UnauthorizedException(msg: String? = null) : BaseException(ErrorCode.UNAUTHORIZED_ACCESS, msg)
- *    class TokenExpiredException(msg: String? = null) : BaseException(ErrorCode.TOKEN_EXPIRED, msg)
- *    class InvalidTokenException(msg: String? = null) : BaseException(ErrorCode.INVALID_TOKEN, msg)
- *    class TenantAccessDeniedException(msg: String? = null) : BaseException(ErrorCode.TENANT_ACCESS_DENIED, msg)
- *    ```
- *
- * 3. Update getHttpStatus() in GlobalExceptionHandler:
- *    ```kotlin
- *    private fun getHttpStatus(errorCode: ErrorCode): HttpStatus {
- *        return when (errorCode) {
- *            ErrorCode.USER_NOT_FOUND,
- *            ErrorCode.ROLE_NOT_FOUND,
- *            ErrorCode.TENANT_NOT_FOUND,
- *            ErrorCode.EMPLOYEE_NOT_FOUND,
- *            ErrorCode.PROJECT_NOT_FOUND,
- *            ErrorCode.BOARD_NOT_FOUND,
- *            ErrorCode.TASK_NOT_FOUND,
- *            ErrorCode.TASK_STATE_NOT_FOUND,
- *            ErrorCode.FILE_NOT_FOUND -> HttpStatus.NOT_FOUND
- *
- *            ErrorCode.INVALID_PASSWORD,
- *            ErrorCode.PASSWORDS_DO_NOT_MATCH,
- *            ErrorCode.BAD_REQUEST,
- *            ErrorCode.FILE_EMPTY,
- *            ErrorCode.FILE_TOO_LARGE,
- *            ErrorCode.INVALID_FILE_TYPE -> HttpStatus.BAD_REQUEST
- *
- *            ErrorCode.DUPLICATED_RECOURSE,
- *            ErrorCode.TENANT_ALREADY_EXISTS,
- *            ErrorCode.PROJECT_ALREADY_EXISTS,
- *            ErrorCode.BOARD_ALREADY_EXISTS,
- *            ErrorCode.TASK_STATE_ALREADY_EXISTS -> HttpStatus.CONFLICT
- *
- *            ErrorCode.UNAUTHORIZED,
- *            ErrorCode.UNAUTHORIZED_ACCESS,
- *            ErrorCode.TOKEN_EXPIRED,
- *            ErrorCode.INVALID_TOKEN,
- *            ErrorCode.TENANT_ACCESS_DENIED -> HttpStatus.UNAUTHORIZED
- *
- *            ErrorCode.TENANT_SUBSCRIPTION_LIMIT_EXCEEDED -> HttpStatus.FORBIDDEN
- *
- *            else -> HttpStatus.INTERNAL_SERVER_ERROR
- *        }
- *    }
- *    ```
- *
- * 4. Add handler for Spring Security exceptions in GlobalExceptionHandler:
- *    ```kotlin
- *    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException::class)
- *    fun handleBadCredentials(ex: BadCredentialsException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
- *        val response = ResponseVO<Nothing>(
- *            status = HttpStatus.UNAUTHORIZED.value(),
- *            errors = mapOf("message" to (ex.message ?: "Invalid credentials")),
- *            timestamp = Instant.now(),
- *            data = null,
- *            source = request.requestURI
- *        )
- *        return ResponseEntity(response, HttpStatus.UNAUTHORIZED)
- *    }
- *
- *    @ExceptionHandler(org.springframework.security.access.AccessDeniedException::class)
- *    fun handleAccessDenied(ex: AccessDeniedException, request: HttpServletRequest): ResponseEntity<ResponseVO<Nothing>> {
- *        val response = ResponseVO<Nothing>(
- *            status = HttpStatus.FORBIDDEN.value(),
- *            errors = mapOf("message" to "Access denied"),
- *            timestamp = Instant.now(),
- *            data = null,
- *            source = request.requestURI
- *        )
- *        return ResponseEntity(response, HttpStatus.FORBIDDEN)
- *    }
- *    ```
- *
- * ============================================================================
- */
-

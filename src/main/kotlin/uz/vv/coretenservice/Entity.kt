@@ -13,26 +13,29 @@ import java.util.UUID
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener::class)
 abstract class BaseEntity(
-
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(updatable = false, nullable = false)
     var id: UUID? = null,
 
     @CreatedDate
+    @Column(name = "created_at", updatable = false)
     var createdAt: Instant? = null,
 
     @LastModifiedDate
+    @Column(name = "updated_at")
     var updatedAt: Instant? = null,
 
     @CreatedBy
+    @Column(name = "created_by", updatable = false)
     var createdBy: UUID? = null,
 
     @LastModifiedBy
+    @Column(name = "updated_by")
     var updatedBy: UUID? = null,
 
     @Column(nullable = false)
-    @ColumnDefault(value = "false")
+    @ColumnDefault("false")
     var deleted: Boolean = false
 )
 
@@ -62,6 +65,9 @@ class User(
     var roles: MutableSet<Role> = mutableSetOf(),
 
     ) : BaseEntity()
+
+
+
 
 @Entity
 @Table(
@@ -219,10 +225,9 @@ class TaskState(
 @Table(
     name = "tasks",
     indexes = [
-        Index(name = "idx_task_tenant", columnList = "tenant_id"),
         Index(name = "idx_task_priority", columnList = "priority"),
         Index(name = "idx_task_due_date", columnList = "due_date"),
-        Index(name = "idx_task_category", columnList = "category_id"),
+        Index(name = "idx_task_board", columnList = "board_id"),
         Index(name = "idx_task_state", columnList = "state_id")
 
     ]
@@ -238,6 +243,7 @@ class Task(
     @Version
     var version: Long? = null,
 
+    @Column(name = "due_date")
     var dueDate: Instant? = null,
 
     @Enumerated(EnumType.STRING)

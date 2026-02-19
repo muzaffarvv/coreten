@@ -20,7 +20,7 @@ data class UserCreateDTO(
     val phoneNum: String,
 
     @field:NotBlank(message = "Password is required")
-    @field:Size(min = 6, message = "Password must be at least 8 characters long")
+    @field:Size(min = 8, message = "Password must be at least 8 characters long")
     @field:Pattern(
         regexp = "^(?=.*[0-9])(?=.*[!@#$%&()\\-+]).*$",
         message = "Password must contain at least one digit and one special character"
@@ -340,4 +340,10 @@ data class UserInfo(
 data class TenantInfo(
     val tenantId: UUID,
     val tenantName: String
+)
+
+data class CurrentUserResponse(
+    val userId: UUID?,
+    val currentTenantId: UUID?,
+    val currentEmployeeId: UUID?
 )
