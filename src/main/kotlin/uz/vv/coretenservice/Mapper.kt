@@ -83,7 +83,6 @@ class EmployeeMapper() : BaseMapper<Employee, EmployeeResponseDTO> {
             active = entity.active,
             position = entity.position,
             user = entity.user.id!!,
-            // ⚠️ N+1 WARNING: tenants lazy collection
             tenants = entity.tenants.map { it.id!! }.toSet(),
             createdAt = entity.createdAt!!,
             updatedAt = entity.updatedAt!!
@@ -122,7 +121,6 @@ class BoardMapper : BaseMapper<Board, BoardResponseDTO> {
             description = entity.description,
             active = entity.active,
             projectId = entity.project.id!!,
-            // ⚠️ N+1 WARNING: states lazy collection — board'dagi barcha state'lar yuklanadi
             states = entity.states.map { it.code }.toMutableList()
         )
 
@@ -150,7 +148,6 @@ class TaskMapper : BaseMapper<Task, TaskResponseDTO> {
             dueDate = entity.dueDate,
             category = entity.board.id!!,
             owner = entity.owner.id!!,
-            // ⚠️ N+1 WARNING: assignees va files lazy collection
             assignees = entity.assignees.map { it.id!! }.toSet(),
             state = entity.state.code,
             files = entity.files.map { it.toResponse() }.toSet()

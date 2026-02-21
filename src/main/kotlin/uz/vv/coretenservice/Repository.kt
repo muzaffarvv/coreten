@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.domain.Specification
+import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 import org.springframework.data.jpa.repository.Modifying
@@ -65,14 +66,16 @@ interface UserRepo : BaseRepo<User> {
 
 @Repository
 interface EmployeeRepo : BaseRepo<Employee> {
+
     fun countByTenantsIdAndActiveTrueAndDeletedFalse(tenantId: UUID): Int
     fun findByUserIdAndDeletedFalse(userId: UUID): Employee?
-    @Query(""" 
-           SELECT e FROM Employee e
-           JOIN e.tenants t 
-           WHERE t.id = :tenantId AND e.active = true
-           """)
-    fun findActiveByTenantId(@Param("tenantId") tenantId: UUID): List<Employee>
+
+    @Query("""
+        SELECT DISTINCT e FROM Employee e
+        JOIN FETCH e.tenants t
+        WHERE t.id = :tenantId AND e.active = true AND e.deleted = false
+    """)
+    fun findActiveByTenantIdWithTenants(@Param("tenantId") tenantId: UUID): List<Employee>
 }
 
 @Repository
@@ -92,18 +95,46 @@ interface ProjectRepo : BaseRepo<Project> {
 interface BoardRepo : BaseRepo<Board> {
     fun existsByNameAndProjectIdAndDeletedFalse(name: String, projectId: UUID): Boolean
     fun existsByNameAndProjectIdAndIdNotAndDeletedFalse(name: String, projectId: UUID, id: UUID): Boolean
-    fun findAllByProjectIdAndDeletedFalse(projectId: UUID): List<Board>
+
+    // Solution to problem N+1
+    @Query(
+        """
+        SELECT b FROM Board b
+        LEFT JOIN FETCH b.states
+        WHERE b.project.id = :projectId
+        AND b.deleted = false
+        """
+    )
+    fun findAllByProjectIdAndDeletedFalseWithStates(@Param("projectId") projectId: UUID): List<Board>
+
+    @Query(
+        """
+        SELECT b FROM Board b
+        LEFT JOIN FETCH b.states
+        WHERE b.id = :id
+        AND b.deleted = false
+        """
+    )
+    fun findByIdAndDeletedFalseWithStates(@Param("id") id: UUID): Board?
 }
 
 @Repository
 interface TaskRepo : BaseRepo<Task> {
-    fun findAllByBoardIdAndDeletedFalse(boardId: UUID): List<Task>
+
+    @Query("""
+        SELECT DISTINCT t FROM Task t
+        LEFT JOIN FETCH t.assignees
+        LEFT JOIN FETCH t.files
+        WHERE t.board.id = :boardId AND t.deleted = false
+    """)
+    fun findAllByBoardIdWithAssigneesAndFiles(@Param("boardId") boardId: UUID): List<Task>
 }
 
 @Repository
 interface FileRepo : BaseRepo<File> {
-    fun existsByKeyName(keyName: String): Boolean
-    fun findByKeyName(keyName: String): File?
+    fun findByKeyNameAndDeletedFalse(keyName: String): File?
+    fun existsByKeyNameAndDeletedFalse(keyName: String): Boolean
+    fun findAllByIdInAndDeletedFalse(ids: List<UUID>): List<File>
 }
 
 @Repository

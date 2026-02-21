@@ -176,6 +176,10 @@ abstract class BaseServiceImpl<
     }
 }
 
+
+
+
+
 @Service
 class UserService(
     repo: UserRepo,
@@ -207,12 +211,11 @@ class UserService(
         return mapper.toResponse(repository.saveAndRefresh(user))
     }
 
-    override fun toEntity(dto: UserCreateDTO): User {
-        return mapper.toEntity(
+    override fun toEntity(dto: UserCreateDTO): User =
+        mapper.toEntity(
             dto,
             encodedPassword = passwordEncoder.encode(dto.password)
         )
-    }
 
     @Transactional
     override fun update(id: UUID, dto: UserUpdate): UserResponse {
@@ -273,6 +276,10 @@ class UserService(
         repository.findByIdAndDeletedFalse(id) ?: throw UserNotFoundException("User not found with id: $id")
 
 }
+
+
+
+
 
 @Service
 class TenantService(
@@ -370,6 +377,10 @@ class TenantService(
     }
 }
 
+
+
+
+
 @Service
 class EmployeeService(
     private val userRepo: UserRepo,
@@ -402,7 +413,6 @@ class EmployeeService(
         )
     }
 
-    // Xavfsizlik: getByIdOrThrow() ichida TenantContext orqali tenant tekshiruvi amalga oshiriladi
     @Transactional(readOnly = true)
     fun getPosition(id: UUID): Position = getByIdOrThrow(id).position
 
@@ -424,7 +434,7 @@ class EmployeeService(
 
     @Transactional(readOnly = true)
     fun getAllByTenantId(id: UUID): List<EmployeeResponseDTO> {
-        val employees = repository.findActiveByTenantId(id)
+        val employees = repository.findActiveByTenantIdWithTenants(id)
         return mapper.toListResponse(employees)
     }
 
@@ -445,7 +455,6 @@ class EmployeeService(
     fun countActiveByTenantId(tenantId: UUID): Int =
         repository.countByTenantsIdAndActiveTrueAndDeletedFalse(tenantId)
 
-    // Xavfsizlik: getByIdOrThrow() ichida tenant tekshiruvi bajariladi
     @Transactional
     fun changePosition(id: UUID, dto: ChangePositionDTO): EmployeeResponseDTO {
         val employee = getByIdOrThrow(id)
@@ -453,6 +462,10 @@ class EmployeeService(
         return mapper.toResponse(repository.save(employee))
     }
 }
+
+
+
+
 
 @Service
 class ProjectService(
@@ -531,6 +544,10 @@ class ProjectService(
 
 }
 
+
+
+
+
 @Service
 class BoardService(
     repo: BoardRepo,
@@ -581,7 +598,7 @@ class BoardService(
 
     @Transactional(readOnly = true)
     override fun getByIdOrThrow(id: UUID): Board {
-        val board = repository.findByIdAndDeletedFalse(id)
+        val board = repository.findByIdAndDeletedFalseWithStates(id)
             ?: throw BoardNotFoundException("Board not found with id $id")
 
         tenantSecurityService.validateEntityTenantAccess(
@@ -592,13 +609,12 @@ class BoardService(
         return board
     }
 
-
     @Transactional(readOnly = true)
     fun getBoard(id: UUID): Board = getByIdOrThrow(id)
 
     @Transactional(readOnly = true)
     fun getAllByProject(projectId: UUID): List<BoardResponseDTO> =
-        mapper.toListResponse(repository.findAllByProjectIdAndDeletedFalse(projectId))
+        mapper.toListResponse(repository.findAllByProjectIdAndDeletedFalseWithStates(projectId))
 
     private fun checkNameUniqueness(name: String, projectId: UUID, excludeId: UUID? = null) {
         val exists = if (excludeId == null) {
@@ -608,6 +624,9 @@ class BoardService(
         if (exists) throw BoardAlreadyExistsException("Board with name '$name' already exists")
     }
 }
+
+
+
 
 
 @Service
@@ -682,18 +701,20 @@ class FileService(
     }
 
     fun getByKey(keyName: String): File =
-        fileRepo.findByKeyName(keyName)
+        fileRepo.findByKeyNameAndDeletedFalse(keyName)
             ?: throw FileNotFoundException("File not found: $keyName")
 
     @Transactional(readOnly = true)
     fun getAllByIds(ids: List<UUID>): List<File> {
         if (ids.isEmpty()) return emptyList()
 
-        val files = fileRepo.findAllById(ids)
+        val files = fileRepo.findAllByIdInAndDeletedFalse(ids)
+
         if (files.size != ids.size) {
             val missing = ids.toSet() - files.map { it.id }.toSet()
             throw FileNotFoundException("Files not found for: $missing")
         }
+
         return files
     }
 
@@ -702,27 +723,21 @@ class FileService(
         val file = fileRepo.findById(id)
             .orElseThrow { FileNotFoundException("File not found: $id") }
 
-        fileRepo.delete(file)
+        file.deleted = true
+        fileRepo.save(file)
 
-        try {
-            Files.deleteIfExists(Paths.get(file.path))
-        } catch (ex: Exception) {
-            log.error("Disk delete error for file {}: {}", id, ex.message)
-        }
+        log.info("File marked as deleted with id: {}", id)
     }
 
     @Transactional
     fun deleteByKeyName(keyName: String) {
-        val file = fileRepo.findByKeyName(keyName)
+        val file = fileRepo.findByKeyNameAndDeletedFalse(keyName)
             ?: throw FileNotFoundException("File not found: $keyName")
 
-        fileRepo.delete(file)
+        file.deleted = true
+        fileRepo.save(file)
 
-        try {
-            Files.deleteIfExists(Paths.get(file.path))
-        } catch (ex: Exception) {
-            log.error("Disk delete error for key {}: {}", keyName, ex.message)
-        }
+        log.info("File marked as deleted with keyName: {}", keyName)
     }
 
     private fun saveToDisk(file: MultipartFile, keyName: String): Path {
@@ -742,7 +757,7 @@ class FileService(
     private fun generateUniqueKey(): String {
         repeat(MAX_RETRIES) {
             val key = FileKeyGenerator.generateFileKey()
-            if (!fileRepo.existsByKeyName(key)) return key
+            if (!fileRepo.existsByKeyNameAndDeletedFalse(key)) return key
         }
         throw FileKeyGenerationException("Max key generation attempts exceeded")
     }
@@ -755,6 +770,10 @@ class FileService(
             else -> FileType.DOCUMENT
         }
 }
+
+
+
+
 
 
 @Service
@@ -891,7 +910,7 @@ class TaskService(
 
     @Transactional(readOnly = true)
     fun getByBoardId(boardId: UUID): List<TaskResponseDTO> {
-        val tasks = repository.findAllByBoardIdAndDeletedFalse(boardId)
+        val tasks = repository.findAllByBoardIdWithAssigneesAndFiles(boardId)
         return mapper.toListResponse(tasks)
     }
 }

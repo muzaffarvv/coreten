@@ -361,6 +361,12 @@ class FileController(private val fileService: FileService) {
         fileService.delete(id)
         return noContent()
     }
+
+    @DeleteMapping("/key/{keyName}")
+    fun deleteByKey(@PathVariable keyName: String): ResponseEntity<Void> {
+        fileService.deleteByKeyName(keyName)  // softly delete
+        return noContent()
+    }
 }
 
 

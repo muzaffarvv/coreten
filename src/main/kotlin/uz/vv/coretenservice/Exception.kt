@@ -23,8 +23,7 @@ class RoleNotFoundException(msg: String? = null) : BaseException(ErrorCode.ROLE_
 
 class TenantNotFoundException(msg: String? = null) : BaseException(ErrorCode.TENANT_NOT_FOUND, msg)
 class TenantAlreadyExistsException(msg: String? = null) : BaseException(ErrorCode.TENANT_ALREADY_EXISTS, msg)
-class TenantSubscriptionLimitExceededException(msg: String? = null) :
-    BaseException(ErrorCode.TENANT_SUBSCRIPTION_LIMIT_EXCEEDED, msg)
+class TenantSubscriptionLimitExceededException(msg: String? = null) : BaseException(ErrorCode.TENANT_SUBSCRIPTION_LIMIT_EXCEEDED, msg)
 
 class EmployeeNotFoundException(msg: String? = null) : BaseException(ErrorCode.EMPLOYEE_NOT_FOUND, msg)
 
@@ -195,7 +194,9 @@ class GlobalExceptionHandler {
 
         if (status.is5xxServerError) {
             logger.error(
-                "Unhandled exception | status={} | method={} | uri={} | message={}",
+                "\n##################  UNHANDLED EXCEPTION  ##################\n" +
+                        "status={} | method={} | uri={} | message={}\n" +
+                        "###############################################################",
                 status.value(),
                 method,
                 fullPath,
@@ -204,7 +205,7 @@ class GlobalExceptionHandler {
             )
         } else {
             logger.warn(
-                "Handled exception | status={} | method={} | uri={} | message={}",
+                "\n HANDLED EXCEPTION | status={} | method={} | uri={} | message={}",
                 status.value(),
                 method,
                 fullPath,
@@ -213,13 +214,11 @@ class GlobalExceptionHandler {
         }
     }
 
-    private fun getHttpStatus(errorCode: ErrorCode): HttpStatus {
-        return when (errorCode) {
-            ErrorCode.USER_NOT_FOUND, ErrorCode.TENANT_NOT_FOUND, ErrorCode.FILE_NOT_FOUND -> HttpStatus.NOT_FOUND
-            ErrorCode.TENANT_ALREADY_EXISTS, ErrorCode.DUPLICATED_RESOURCE -> HttpStatus.CONFLICT
-            ErrorCode.BAD_REQUEST, ErrorCode.INVALID_PASSWORD -> HttpStatus.BAD_REQUEST
-            ErrorCode.UNAUTHORIZED -> HttpStatus.UNAUTHORIZED
-            else -> HttpStatus.INTERNAL_SERVER_ERROR
-        }
+    private fun getHttpStatus(errorCode: ErrorCode): HttpStatus = when (errorCode) {
+        ErrorCode.USER_NOT_FOUND, ErrorCode.TENANT_NOT_FOUND, ErrorCode.FILE_NOT_FOUND -> HttpStatus.NOT_FOUND
+        ErrorCode.TENANT_ALREADY_EXISTS, ErrorCode.DUPLICATED_RESOURCE -> HttpStatus.CONFLICT
+        ErrorCode.BAD_REQUEST, ErrorCode.INVALID_PASSWORD -> HttpStatus.BAD_REQUEST
+        ErrorCode.UNAUTHORIZED -> HttpStatus.UNAUTHORIZED
+        else -> HttpStatus.INTERNAL_SERVER_ERROR
     }
 }

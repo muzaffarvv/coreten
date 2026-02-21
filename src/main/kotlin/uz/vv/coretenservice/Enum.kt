@@ -17,7 +17,6 @@ enum class Position {
     INTERN
 }
 
-
 enum class TaskPriority {
     LOW,
     MEDIUM_LOW,
