@@ -59,26 +59,20 @@ class BaseRepoImpl<T : BaseEntity>(
 
 @Repository
 interface UserRepo : BaseRepo<User> {
+    fun existsByPhoneNumAndDeletedFalse(phoneNum: String): Boolean
     fun findByPhoneNumAndDeletedFalse(phoneNum: String): User?
-    fun existsByPhoneNum(phoneNum: String): Boolean
 }
 
 @Repository
 interface EmployeeRepo : BaseRepo<Employee> {
-    fun findByCodeAndDeletedFalse(code: String): Employee?
-    fun countByTenantsIdAndDeletedFalse(tenantId: UUID): Int
     fun countByTenantsIdAndActiveTrueAndDeletedFalse(tenantId: UUID): Int
-
-    // User ID bo'yicha employee topish — CustomUserDetailsService da N+1 oldini oladi
     fun findByUserIdAndDeletedFalse(userId: UUID): Employee?
-
     @Query(""" 
            SELECT e FROM Employee e
            JOIN e.tenants t 
            WHERE t.id = :tenantId AND e.active = true
            """)
     fun findActiveByTenantId(@Param("tenantId") tenantId: UUID): List<Employee>
-
 }
 
 @Repository
@@ -87,49 +81,30 @@ interface TenantRepo : BaseRepo<Tenant> {
     fun existsByNameIgnoreCaseAndIdNot(name: String, id: UUID): Boolean
 }
 
-
-
 @Repository
 interface ProjectRepo : BaseRepo<Project> {
-
     fun existsByNameAndTenantIdAndDeletedFalse(name: String, tenantId: UUID): Boolean
-
     fun existsByNameAndTenantIdAndIdNotAndDeletedFalse(name: String, tenantId: UUID, id: UUID): Boolean
-
     fun findAllByTenantIdAndDeletedFalse(tenantId: UUID): List<Project>
 }
 
-
 @Repository
 interface BoardRepo : BaseRepo<Board> {
-
     fun existsByNameAndProjectIdAndDeletedFalse(name: String, projectId: UUID): Boolean
-
     fun existsByNameAndProjectIdAndIdNotAndDeletedFalse(name: String, projectId: UUID, id: UUID): Boolean
-
     fun findAllByProjectIdAndDeletedFalse(projectId: UUID): List<Board>
 }
 
-
 @Repository
 interface TaskRepo : BaseRepo<Task> {
-    @Modifying
-    @Query(value = "delete from task_files where file_id = :fileId", nativeQuery = true)
-    fun deleteTaskFileRelations(@Param("fileId") fileId: UUID)
     fun findAllByBoardIdAndDeletedFalse(boardId: UUID): List<Task>
 }
 
-
-
-
 @Repository
 interface FileRepo : BaseRepo<File> {
-    fun findByKeyName(keyName: String): File?
     fun existsByKeyName(keyName: String): Boolean
+    fun findByKeyName(keyName: String): File?
 }
-
-
-
 
 @Repository
 interface RoleRepo : BaseRepo<Role> {

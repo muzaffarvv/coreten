@@ -1,7 +1,5 @@
 package uz.vv.coretenservice
 
-import org.springframework.data.domain.Page
-import org.springframework.data.domain.Pageable
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -15,7 +13,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.UUID
 import org.slf4j.LoggerFactory
-import org.springframework.security.core.userdetails.UsernameNotFoundException
 
 @Service
 class RoleService(private val roleRepo: RoleRepo) {
@@ -125,8 +122,6 @@ class TaskStateService(
         taskStateRepo.trash(state.id!!)
     }
 
-    // detachState o'chirildi: board maydoni non-nullable, state boardsiz mavjud bo'la olmaydi
-
     private fun getBoard(boardId: UUID) =
         boardService.getBoard(boardId)
 
@@ -198,7 +193,7 @@ class UserService(
 
     @Transactional
     override fun create(dto: UserCreateDTO): UserResponse {
-        if (repository.existsByPhoneNum(dto.phoneNum)) {
+        if (repository.existsByPhoneNumAndDeletedFalse(dto.phoneNum)) {
             throw DuplicateResourceException("User already exists with phone number ${dto.phoneNum}")
         }
 
@@ -219,6 +214,7 @@ class UserService(
         )
     }
 
+    @Transactional
     override fun update(id: UUID, dto: UserUpdate): UserResponse {
         val user = updateEntity(dto, getByIdOrThrow(id))
         val saved = repository.saveAndRefresh(user)
@@ -234,7 +230,7 @@ class UserService(
     @Transactional
     fun updateSecurity(id: UUID, dto: UserUpdateSecurity): UserResponse {
         val user = updateSecurityEntity(dto, getByIdOrThrow(id))
-        val saved = repository.save(user)
+        val saved = repository.saveAndRefresh(user)
         return mapper.toResponse(saved)
     }
 
@@ -242,7 +238,7 @@ class UserService(
 
         dto.phoneNum?.let { newPhone ->
             if (newPhone != phoneNum) {
-                if (repository.existsByPhoneNum(newPhone)) {
+                if (repository.existsByPhoneNumAndDeletedFalse(newPhone)) {
                     throw DuplicateResourceException(
                         "User already exists with phone number $newPhone"
                     )
@@ -292,13 +288,11 @@ class TenantService(
         TenantRepo
         >(repo, mapper) {
 
-
+    @Transactional
     override fun create(dto: TenantCreateDTO): TenantResponseDTO {
         validateNameUnique(dto.name)
 
-        val entity = toEntity(dto).apply {
-            maxUsers = subscriptionPlan.maxUsers
-        }
+        val entity = toEntity(dto).apply { maxUsers = subscriptionPlan.maxUsers }
 
         val saved = repository.save(entity)
         return mapper.toResponse(saved)
@@ -307,16 +301,13 @@ class TenantService(
     override fun toEntity(dto: TenantCreateDTO): Tenant =
         mapper.toEntity(dto)
 
+    @Transactional
     override fun update(id: UUID, dto: TenantUpdateDTO): TenantResponseDTO {
         val tenant = getByIdOrThrow(id)
 
         dto.name?.let { validateNameUnique(it, excludeId = id) }
 
         val updated = updateEntity(dto, tenant)
-
-        if (dto.subscriptionPlan != null) {
-            updated.maxUsers = updated.subscriptionPlan.maxUsers
-        }
 
         validateSubscriptionLimits(updated)
 
@@ -329,8 +320,24 @@ class TenantService(
             dto.name?.let { name = it }
             dto.address?.let { address = it }
             dto.tagline?.let { tagline = it }
-            dto.subscriptionPlan?.let { subscriptionPlan = it }
         }
+
+    @Transactional
+    fun changeSubscriptionPlan(tenantId: UUID, newPlan: TenantPlan): TenantResponseDTO {
+        val tenant = getByIdOrThrow(tenantId)
+
+        if (tenant.subscriptionPlan == newPlan) {
+            return mapper.toResponse(tenant)
+        }
+
+        tenant.subscriptionPlan = newPlan
+        tenant.maxUsers = newPlan.maxUsers
+
+        validateSubscriptionLimits(tenant)
+
+        val saved = repository.save(tenant)
+        return mapper.toResponse(saved)
+    }
 
     @Transactional(readOnly = true)
     fun getTenant(id: UUID): Tenant = getByIdOrThrow(id)
@@ -603,8 +610,6 @@ class BoardService(
 }
 
 
-
-
 @Service
 class FileService(
     private val fileRepo: FileRepo,
@@ -628,35 +633,41 @@ class FileService(
 
     @Transactional
     fun upload(file: MultipartFile): File {
-
         if (file.isEmpty) throw FileEmptyException("File is empty")
-        if (file.size > maxSize)
-            throw FileTooLargeException("File size exceeds allowed limit")
+        if (file.size > maxSize) throw FileTooLargeException("File size exceeds limit")
 
         val originalName = file.originalFilename ?: "unnamed"
-        val type = resolveFileType(file.contentType)
+        val contentType = file.contentType
         val keyName = generateUniqueKey()
 
         val targetPath = try {
             saveToDisk(file, keyName)
         } catch (ex: Exception) {
-            throw FileUploadFailedException("Disk write failed: ${ex.message}")
+            log.error("Disk write failed: ${ex.message}")
+            throw FileUploadFailedException("Disk write failed")
         }
 
         return try {
-            fileRepo.save(
-                File(
-                    type = type,
-                    orgName = originalName,
-                    keyName = keyName,
-                    path = targetPath.toString(),
-                    size = file.size.toInt()
-                )
-            )
+            saveFileToDb(originalName, contentType, keyName, targetPath, file.size)
         } catch (ex: Exception) {
             Files.deleteIfExists(targetPath)
-            throw FileUploadFailedException("Database save failed: ${ex.message}")
+            log.error("Database save failed, rolling back file creation: ${ex.message}")
+            throw FileUploadFailedException("Database save failed")
         }
+    }
+
+    @Transactional
+    fun saveFileToDb(orgName: String, contentType: String?, key: String, path: Path, size: Long): File {
+        val type = resolveFileType(contentType)
+        return fileRepo.save(
+            File(
+                type = type,
+                orgName = orgName,
+                keyName = key,
+                path = path.toString(),
+                size = size.toInt()
+            )
+        )
     }
 
     fun download(keyName: String): Resource {
@@ -744,7 +755,6 @@ class FileService(
             else -> FileType.DOCUMENT
         }
 }
-
 
 
 @Service
@@ -842,12 +852,10 @@ class TaskService(
         return task
     }
 
-    // Employee biriktirilayotganda tenant tekshiruvi employeeService.getEmployee() ichida bajariladi
-    // ya'ni employee joriy tenantga tegishli ekanligini getByIdOrThrow() kafolatlaydi
     @Transactional
     fun assignEmployee(taskId: UUID, employeeId: UUID): TaskResponseDTO {
         val task = getByIdOrThrow(taskId)
-        // Employee'ni context orqali tenant tekshiruvidan o'tkazamiz
+
         val employee = employeeService.getEmployee(employeeId)
 
         if (task.assignees.any { it.id == employee.id }) {

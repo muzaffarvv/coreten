@@ -1,10 +1,7 @@
 package uz.vv.coretenservice
 
-
 import jakarta.validation.Valid
 import org.springframework.core.io.Resource
-import org.springframework.data.domain.Page
-import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -15,9 +12,8 @@ import org.springframework.web.multipart.MultipartFile
 import java.time.Instant
 import java.util.UUID
 
-
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/auth")
 class AuthController(
     private val authService: AuthService
 ) {
@@ -25,26 +21,26 @@ class AuthController(
     @PostMapping("/register")
     fun register(@Valid @RequestBody dto: UserCreateDTO): ResponseEntity<ResponseVO<AuthResponse>> {
         val authResponse = authService.register(dto)
-        return created(authResponse, "/auth/register")
+        return created(authResponse, "/api/v1/auth/register")
     }
 
     @PostMapping("/login")
     fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<ResponseVO<AuthResponse>> {
         val authResponse = authService.login(request)
-        return ok(authResponse, "/auth/login")
+        return ok(authResponse, "/api/v1/auth/login")
     }
 
     @PostMapping("/refresh")
     fun refreshToken(@Valid @RequestBody request: RefreshTokenRequest): ResponseEntity<ResponseVO<AuthResponse>> {
         val authResponse = authService.refreshToken(request)
-        return ok(authResponse, "/auth/refresh")
+        return ok(authResponse, "/api/v1/auth/refresh")
     }
 
     @PostMapping("/switch-tenant")
     fun switchTenant(@Valid @RequestBody request: SwitchTenantRequest): ResponseEntity<ResponseVO<AuthResponse>> {
         val currentUserId = TenantContext.getUserIdOrThrow()
         val authResponse = authService.switchTenant(request, currentUserId)
-        return ok(authResponse, "/auth/switch-tenant")
+        return ok(authResponse, "/api/v1/auth/switch-tenant")
     }
 
     @GetMapping("/me")
@@ -59,21 +55,22 @@ class AuthController(
             currentEmployeeId = employeeId
         )
 
-        return ok(response, "/auth/me")
+        return ok(response, "/api/v1/auth/me")
     }
 }
 
 
 @RestController
-@RequestMapping("/api/v1/users")
+@RequestMapping("/users")
 class UserController(private val userService: UserService) {
 
     @PostMapping
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     fun create(@Valid @RequestBody dto: UserCreateDTO): ResponseEntity<ResponseVO<UserResponse>> =
         created(userService.create(dto), "/api/v1/users")
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('PLATFORM_USER')")
     fun getById(@PathVariable id: UUID): ResponseEntity<ResponseVO<UserResponse>> =
         ok(userService.getById(id), "/api/v1/users/$id")
 
@@ -91,11 +88,13 @@ class UserController(private val userService: UserService) {
     ): ResponseEntity<ResponseVO<UserResponse>> =
         ok(userService.updateSecurity(id, dto), "/api/v1/users/$id/security")
 
-    @GetMapping("/by-phone")
-    fun getByPhone(@RequestParam phoneNum: String): ResponseEntity<ResponseVO<UserResponse>> =
-        ok(userService.getByPhoneNum(phoneNum), "/api/v1/users/by-phone")
+    @GetMapping("/{phoneNum}/by-phone")
+    @PreAuthorize("hasRole('PLATFORM_USER')")
+    fun getByPhone(@PathVariable phoneNum: String): ResponseEntity<ResponseVO<UserResponse>> =
+        ok(userService.getByPhoneNum(phoneNum), "/api/v1/users/$phoneNum/by-phone")
 
     @GetMapping
+    @PreAuthorize("hasRole('PLATFORM_USER')")
     fun getAll(): ResponseEntity<ResponseVO<List<UserResponse>>> = ok(userService.getAllList(), "/api/v1/users")
 
     @DeleteMapping("/{id}")
@@ -107,29 +106,37 @@ class UserController(private val userService: UserService) {
 
 
 @RestController
-@RequestMapping("/api/v1/tenants")
+@RequestMapping("/tenants")
 class TenantController(private val tenantService: TenantService) {
 
     @PostMapping
-//    @PreAuthorize("hasRole('PLATFORM_ADMIN')") TODO ROLE CHECK FOR EMPLOYEE
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
     fun create(@Valid @RequestBody dto: TenantCreateDTO): ResponseEntity<ResponseVO<TenantResponseDTO>> =
         created(tenantService.create(dto), "/api/v1/tenants")
 
     @GetMapping("/{id}")
-//    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
+    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
     fun getById(@PathVariable id: UUID): ResponseEntity<ResponseVO<TenantResponseDTO>> =
         ok(tenantService.getById(id), "/api/v1/tenants/$id")
 
     @PutMapping("/{id}")
-//    @PreAuthorize("@tenantAuth.hasPosition('OWNER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
     fun update(
         @PathVariable id: UUID,
         @Valid @RequestBody dto: TenantUpdateDTO
     ): ResponseEntity<ResponseVO<TenantResponseDTO>> =
         ok(tenantService.update(id, dto), "/api/v1/tenants/$id")
 
+    @PatchMapping("/{id}/plan")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
+    fun updatePlan(@PathVariable id: UUID, @RequestBody request: ChangePlanRequest
+    ): ResponseEntity<ResponseVO<TenantResponseDTO>> = ok(
+        tenantService.changeSubscriptionPlan(id, request.newPlan),
+        "/api/v1/tenants/$id/plan"
+        )
+
     @DeleteMapping("/{id}")
-//    @PreAuthorize("@tenantAuth.hasPosition('OWNER')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {
         tenantService.delete(id)
         return noContent()
@@ -138,7 +145,7 @@ class TenantController(private val tenantService: TenantService) {
 
 
 @RestController
-@RequestMapping("/api/v1/employees")
+@RequestMapping("/employees")
 class EmployeeController(private val employeeService: EmployeeService) {
 
     @PostMapping
@@ -156,17 +163,14 @@ class EmployeeController(private val employeeService: EmployeeService) {
     ): ResponseEntity<ResponseVO<EmployeeResponseDTO>> =
         ok(employeeService.update(id, dto), "/api/v1/employees/$id")
 
-    // Tenant bo'yicha employee'lar ro'yxati
     @GetMapping("/tenant/{tenantId}")
     fun getByTenant(@PathVariable tenantId: UUID): ResponseEntity<ResponseVO<List<EmployeeResponseDTO>>> =
         ok(employeeService.getAllByTenantId(tenantId), "/api/v1/employees/tenant/$tenantId")
 
-    // Employee pozitsiyasini olish — context orqali tenant tekshiruvi bajariladi
     @GetMapping("/{id}/position")
     fun getPosition(@PathVariable id: UUID): ResponseEntity<ResponseVO<Position>> =
         ok(employeeService.getPosition(id), "/api/v1/employees/$id/position")
 
-    // Pozitsiyani o'zgartirish
     @PatchMapping("/{id}/position")
     fun changePosition(
         @PathVariable id: UUID,
@@ -183,7 +187,7 @@ class EmployeeController(private val employeeService: EmployeeService) {
 
 
 @RestController
-@RequestMapping("/api/v1/projects")
+@RequestMapping("/projects")
 class ProjectController(private val projectService: ProjectService) {
 
     @PostMapping
@@ -214,7 +218,7 @@ class ProjectController(private val projectService: ProjectService) {
 
 
 @RestController
-@RequestMapping("/api/v1/boards")
+@RequestMapping("/boards")
 class BoardController(private val boardService: BoardService) {
 
     @PostMapping
@@ -245,7 +249,7 @@ class BoardController(private val boardService: BoardService) {
 
 
 @RestController
-@RequestMapping("/api/v1/tasks")
+@RequestMapping("/tasks")
 class TaskController(private val taskService: TaskService) {
 
     @PostMapping
@@ -263,7 +267,6 @@ class TaskController(private val taskService: TaskService) {
     ): ResponseEntity<ResponseVO<TaskResponseDTO>> =
         ok(taskService.update(id, dto), "/api/v1/tasks/$id")
 
-    // Task holatini o'zgartirish
     @PatchMapping("/{id}/change-state")
     fun changeState(
         @PathVariable id: UUID,
@@ -271,7 +274,6 @@ class TaskController(private val taskService: TaskService) {
     ): ResponseEntity<ResponseVO<TaskResponseDTO>> =
         ok(taskService.changeState(id, code), "/api/v1/tasks/$id/change-state")
 
-    // Employee biriktirish
     @PostMapping("/{taskId}/assignees/{employeeId}")
     fun assignEmployee(
         @PathVariable taskId: UUID,
@@ -279,7 +281,6 @@ class TaskController(private val taskService: TaskService) {
     ): ResponseEntity<ResponseVO<TaskResponseDTO>> =
         ok(taskService.assignEmployee(taskId, employeeId), "/api/v1/tasks/$taskId/assignees/$employeeId")
 
-    // Employee'ni olib tashlash
     @DeleteMapping("/{taskId}/assignees/{employeeId}")
     fun unassignEmployee(
         @PathVariable taskId: UUID,
@@ -300,7 +301,7 @@ class TaskController(private val taskService: TaskService) {
 
 
 @RestController
-@RequestMapping("/api/v1/task-states")
+@RequestMapping("/task-states")
 class TaskStateController(private val taskStateService: TaskStateService) {
 
     @PostMapping("/board/{boardId}")
@@ -338,7 +339,7 @@ class TaskStateController(private val taskStateService: TaskStateService) {
 
 
 @RestController
-@RequestMapping("/api/v1/files")
+@RequestMapping("/files")
 class FileController(private val fileService: FileService) {
 
     @PostMapping("/upload", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])

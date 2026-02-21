@@ -162,8 +162,3 @@ fun TaskState.toResponse(): TaskStateDto =
 
 fun File.toResponse(): FileDto =
     FileDto(type, orgName, keyName)
-
-
-
-
-

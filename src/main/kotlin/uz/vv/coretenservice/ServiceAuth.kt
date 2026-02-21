@@ -21,10 +21,10 @@ class AuthService(
 
     private val logger = LoggerFactory.getLogger(AuthService::class.java)
 
-    @Transactional
+    @Transactional // register = user_create + login + jwt
     fun register(dto: UserCreateDTO): AuthResponse {
 
-        if (userRepo.existsByPhoneNum(dto.phoneNum)) {
+        if (userRepo.existsByPhoneNumAndDeletedFalse(dto.phoneNum)) {
             throw DuplicateResourceException("User already exists with phone number: ${dto.phoneNum}")
         }
 
@@ -40,7 +40,7 @@ class AuthService(
         )
 
         try {
-            val userRole = roleService.getByCode("USER")
+            val userRole = roleService.getByCode("PLATFORM_USER") ///
             user.roles.add(userRole)
         } catch (e: RoleNotFoundException) {
             logger.warn("Default USER role not found. User created without roles. $e.message")

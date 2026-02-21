@@ -30,18 +30,17 @@ import javax.crypto.SecretKey
 import kotlin.text.startsWith
 import kotlin.text.substring
 
-
-// application.yml dagi "app.jwt" prefixiga mos keladi
 @Configuration
 @ConfigurationProperties(prefix = "jwt")
 class JwtProperties {
 
     var secret: String = ""
 
-    // YAML: access-token-expiration-ms (Spring Boot kebab-case → camelCase relaxed binding)
     var accessTokenExpirationMs: Long = 3600000
+//    //  30 000 ms = 30 second for testing
+//    var accessTokenExpirationMs: Long = 30000
 
-    // YAML: refresh-token-expiration-ms
+    // 604 800 000 ms = 10 080 minute = 168 hour = 7 day
     var refreshTokenExpirationMs: Long = 604800000
 
     var issuer: String = "coreten-service"
@@ -66,7 +65,7 @@ class JwtAuthenticationEntryPoint(
         response.contentType = MediaType.APPLICATION_JSON_VALUE
         response.status = HttpServletResponse.SC_UNAUTHORIZED
 
-        val errorResponse = ResponseVO<Nothing>(
+        val errorResponse = ResponseVO(
             status = HttpServletResponse.SC_UNAUTHORIZED,
             errors = mapOf(
                 "code" to "UNAUTHORIZED",
@@ -194,7 +193,7 @@ class JwtProvider(private val jwtProperties: JwtProperties) {
             .compact()
     }
 
-    fun generateRefreshToken(userId: UUID): String { /// REFRESH TOKEN GENERATE
+    fun generateRefreshToken(userId: UUID): String { // TODO  REFRESH TOKEN GENERATE
         val now = Date()
         val expiryDate = Date(now.time + jwtProperties.refreshTokenExpirationMs)
 

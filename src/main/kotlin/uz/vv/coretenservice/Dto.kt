@@ -8,8 +8,10 @@ import java.util.UUID
 data class UserCreateDTO(
     @field:NotBlank(message = "First name is required")
     @field:Size(min = 2, max = 72, message = "First name must be between 2 and 72 characters")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Last name must contain only letters")
     val firstName: String,
 
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Last name must contain only letters")
     val lastName: String? = null,
 
     @field:NotBlank(message = "Phone number is required")
@@ -33,9 +35,10 @@ data class UserCreateDTO(
 
 data class UserUpdate(
     @field:Size(min = 2, max = 72, message = "First name must be between 2 and 72 characters")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Last name must contain only letters")
     val firstName: String?,
 
-    @field:NotBlank
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Last name must contain only letters")
     val lastName: String?,
 )
 
@@ -80,6 +83,7 @@ data class PermissionDto(
 data class TenantCreateDTO(
     @field:NotBlank(message = "Company name can't be empty")
     @field:Size(min = 2, max = 72, message = "The name is too short or too long")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
     val name: String,
 
     @field:Size(max = 72, message = "The address is too long")
@@ -91,6 +95,7 @@ data class TenantCreateDTO(
 
 data class TenantUpdateDTO(
     @field:Size(min = 2, max = 72, message = "The name is too short or too long")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
     val name: String?,
 
     @field:Size(max = 72, message = "The address is too long")
@@ -98,8 +103,6 @@ data class TenantUpdateDTO(
 
     @field:Size(max = 150, message = "The tagline is too long")
     val tagline: String?,
-
-    val subscriptionPlan: TenantPlan?,
 )
 
 data class TenantResponseDTO(
@@ -112,6 +115,9 @@ data class TenantResponseDTO(
     val maxUsers: Int?
 )
 
+data class ChangePlanRequest(
+    val newPlan: TenantPlan
+)
 
 
 data class EmployeeCreateDTO(
@@ -141,6 +147,7 @@ data class EmployeeResponseDTO(
 data class ProjectCreateDTO(
 
     @field:NotBlank(message = "Project name is required")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
     @field:Size(min = 2, max = 72, message = "Project name must be between 2 and 72 characters")
     val name: String,
 
@@ -153,6 +160,7 @@ data class ProjectCreateDTO(
 
 data class ProjectUpdateDTO(
 
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
     @field:Size(min = 2, max = 72, message = "Project name must be between 2 and 72 characters")
     val name: String?,
 
@@ -175,6 +183,7 @@ data class ProjectResponseDTO(
 data class BoardCreateDTO(
 
     @field:NotBlank(message = "Board name is required")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
     @field:Size(min = 2, max = 72)
     val name: String,
 
@@ -189,6 +198,7 @@ data class BoardCreateDTO(
 data class BoardUpdateDTO(
 
     @field:Size(min = 2, max = 72)
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
     val name: String?,
 
     @field:Size(max = 320, message = "Description is too long")

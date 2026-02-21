@@ -73,13 +73,10 @@ class CustomUserDetails(
 
     override fun isEnabled(): Boolean = enabled
 
-    fun hasAccessToTenant(tenantId: UUID): Boolean {
-        return availableTenantIds.contains(tenantId)
-    }
+    fun hasAccessToTenant(tenantId: UUID): Boolean = availableTenantIds.contains(tenantId)
 
-    fun getDefaultTenantId(): UUID? {
-        return availableTenantIds.firstOrNull()
-    }
+    fun getDefaultTenantId(): UUID? = availableTenantIds.firstOrNull()
+
 }
 
 @Service

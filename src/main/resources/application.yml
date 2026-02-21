@@ -6,7 +6,7 @@ spring:
     multipart:
       enabled: true
       max-file-size: 10MB
-      max-request-size: 15MB # Increased slightly for request overhead
+      max-request-size: 15MB
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/coreten}
@@ -14,13 +14,13 @@ spring:
     password: ${DB_PASSWORD:admin}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 10 # Recommended for standard small services
+      maximum-pool-size: 10
 
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: false
-    open-in-view: false # Performance: Prevents holding connections too long
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
@@ -28,7 +28,6 @@ spring:
     naming:
       physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
 
-# Move custom logic under a unique namespace
 app:
   file:
     upload-dir: ${UPLOAD_DIR:uploads}
@@ -46,6 +45,10 @@ jwt:
 
   # 604 800 000 ms = 10 080 minute = 168 hour = 7 kun
   refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000}
+
+server:
+  servlet:
+    context-path: /api/v1
 
 logging:
   level:
