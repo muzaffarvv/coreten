@@ -11,6 +11,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.HttpMediaTypeNotSupportedException
 import org.slf4j.LoggerFactory
+import org.springframework.security.authorization.AuthorizationDeniedException
 import java.time.Instant
 
 sealed class BaseException(
@@ -68,6 +69,20 @@ data class ResponseVO<T>(
 class GlobalExceptionHandler {
 
     private val logger = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
+
+    @ExceptionHandler(value = [AuthorizationDeniedException::class, AccessDeniedException::class])
+    fun handleAccessDeniedException(
+        ex: Exception,
+        request: HttpServletRequest
+    ): ResponseEntity<ResponseVO<Nothing>> {
+        val status = HttpStatus.FORBIDDEN
+
+        logError(ex, request, status)
+
+        val errorMessage = "You do not have permission to perform this action."
+
+        return buildResponse(status, errorMessage, request)
+    }
 
     @ExceptionHandler(HttpMessageNotReadableException::class)
     fun handleReadableException(

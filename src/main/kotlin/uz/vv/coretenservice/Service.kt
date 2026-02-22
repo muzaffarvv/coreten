@@ -265,6 +265,18 @@ class UserService(
         password = passwordEncoder.encode(newPass)
     }
 
+    @Transactional
+    fun updateUserRole(userId: UUID, dto: UserUpdateRoleDTO): UserResponse {
+        val user = getByIdOrThrow(userId)
+
+        val newRole = roleService.getByCode(dto.roleCode)
+
+        user.roles.add(newRole)
+
+        val saved = repository.saveAndRefresh(user)
+        return mapper.toResponse(saved)
+    }
+
     @Transactional(readOnly = true)
     fun getByPhoneNum(phoneNum: String): UserResponse {
         val user = repository.findByPhoneNumAndDeletedFalse(phoneNum)
@@ -274,7 +286,6 @@ class UserService(
 
     override fun getByIdOrThrow(id: UUID): User =
         repository.findByIdAndDeletedFalse(id) ?: throw UserNotFoundException("User not found with id: $id")
-
 }
 
 

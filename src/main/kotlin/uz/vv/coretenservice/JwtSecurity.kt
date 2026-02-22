@@ -113,7 +113,7 @@ class JwtAuthenticationFilter(
             filterChain.doFilter(request, response)
         } finally {
             TenantContext.clear()
-            SecurityContextHolder.clearContext()
+//            SecurityContextHolder.clearContext()
         }
     }
 

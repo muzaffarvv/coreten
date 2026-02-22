@@ -15,7 +15,7 @@ import java.util.UUID
 @RestController
 @RequestMapping("/auth")
 class AuthController(
-    private val authService: AuthService
+    private val authService: AuthService,
 ) {
 
     @PostMapping("/register")
@@ -44,19 +44,8 @@ class AuthController(
     }
 
     @GetMapping("/me")
-    fun getCurrentUser(): ResponseEntity<ResponseVO<CurrentUserResponse>> {
-        val userId = TenantContext.getUserIdOrThrow()
-        val tenantId = TenantContext.getTenantIdOrNull()
-        val employeeId = TenantContext.getEmployeeIdOrThrow()
-
-        val response = CurrentUserResponse(
-            userId = userId,
-            currentTenantId = tenantId,
-            currentEmployeeId = employeeId
-        )
-
-        return ok(response, "/api/v1/auth/me")
-    }
+    fun getCurrent(): ResponseEntity<ResponseVO<UserInfo>> =
+        ok(authService.getCurrent(), "/api/v1/auth/me")
 }
 
 
@@ -87,6 +76,13 @@ class UserController(private val userService: UserService) {
         @Valid @RequestBody dto: UserUpdateSecurity
     ): ResponseEntity<ResponseVO<UserResponse>> =
         ok(userService.updateSecurity(id, dto), "/api/v1/users/$id/security")
+
+    @PatchMapping("/{id}/role")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    fun updateRole(
+        @PathVariable id: UUID,
+        @RequestBody dto: UserUpdateRoleDTO
+    ): UserResponse = userService.updateUserRole(id, dto)
 
     @GetMapping("/{phoneNum}/by-phone")
     @PreAuthorize("hasRole('PLATFORM_USER')")
@@ -129,11 +125,13 @@ class TenantController(private val tenantService: TenantService) {
 
     @PatchMapping("/{id}/plan")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
-    fun updatePlan(@PathVariable id: UUID, @RequestBody request: ChangePlanRequest
+    fun updatePlan(
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: ChangePlanRequest
     ): ResponseEntity<ResponseVO<TenantResponseDTO>> = ok(
         tenantService.changeSubscriptionPlan(id, request.newPlan),
         "/api/v1/tenants/$id/plan"
-        )
+    )
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
@@ -149,6 +147,7 @@ class TenantController(private val tenantService: TenantService) {
 class EmployeeController(private val employeeService: EmployeeService) {
 
     @PostMapping
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     fun create(@Valid @RequestBody dto: EmployeeCreateDTO): ResponseEntity<ResponseVO<EmployeeResponseDTO>> =
         created(employeeService.create(dto), "/api/v1/employees")
 
@@ -315,7 +314,6 @@ class TaskStateController(private val taskStateService: TaskStateService) {
     fun getAllByBoard(@PathVariable boardId: UUID): ResponseEntity<ResponseVO<List<TaskState>>> =
         ok(taskStateService.getAllByBoardId(boardId), "/api/v1/task-states/board/$boardId")
 
-    // TaskState'ni boshqa board'ga nusxalash
     @PostMapping("/{id}/copy-to/{toBoardId}")
     fun copyState(
         @PathVariable id: UUID,

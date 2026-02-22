@@ -79,11 +79,10 @@ data class PermissionDto(
 )
 
 
-
 data class TenantCreateDTO(
     @field:NotBlank(message = "Company name can't be empty")
     @field:Size(min = 2, max = 72, message = "The name is too short or too long")
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Tenant name must contain only letters")
     val name: String,
 
     @field:Size(max = 72, message = "The address is too long")
@@ -95,7 +94,7 @@ data class TenantCreateDTO(
 
 data class TenantUpdateDTO(
     @field:Size(min = 2, max = 72, message = "The name is too short or too long")
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Tenant name must contain only letters")
     val name: String?,
 
     @field:Size(max = 72, message = "The address is too long")
@@ -116,6 +115,8 @@ data class TenantResponseDTO(
 )
 
 data class ChangePlanRequest(
+    @field:NotNull(message = "New plan is required")
+    @field:Pattern(regexp = "^[A-Za-z]+$", message = "New plan must contain only letters")
     val newPlan: TenantPlan
 )
 
@@ -143,12 +144,11 @@ data class EmployeeResponseDTO(
 )
 
 
-
 data class ProjectCreateDTO(
 
     @field:NotBlank(message = "Project name is required")
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
     @field:Size(min = 2, max = 72, message = "Project name must be between 2 and 72 characters")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Project name must contain only letters")
     val name: String,
 
     @field:Size(max = 320, message = "Description is too long")
@@ -160,8 +160,8 @@ data class ProjectCreateDTO(
 
 data class ProjectUpdateDTO(
 
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
     @field:Size(min = 2, max = 72, message = "Project name must be between 2 and 72 characters")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Project name must contain only letters")
     val name: String?,
 
     @field:Size(max = 320, message = "Description is too long")
@@ -179,11 +179,10 @@ data class ProjectResponseDTO(
 )
 
 
-
 data class BoardCreateDTO(
 
     @field:NotBlank(message = "Board name is required")
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Board name must contain only letters")
     @field:Size(min = 2, max = 72)
     val name: String,
 
@@ -193,12 +192,12 @@ data class BoardCreateDTO(
     @field:NotNull(message = "Project ID is required")
     val projectId: UUID,
 
-)
+    )
 
 data class BoardUpdateDTO(
 
     @field:Size(min = 2, max = 72)
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+$", message = "Tenant name must contain only letters")
+    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Board name must contain only letters")
     val name: String?,
 
     @field:Size(max = 320, message = "Description is too long")
@@ -206,7 +205,7 @@ data class BoardUpdateDTO(
 
     val active: Boolean?,
 
-)
+    )
 
 data class BoardResponseDTO(
     val id: UUID,
@@ -216,7 +215,6 @@ data class BoardResponseDTO(
     val projectId: UUID,
     val states: MutableList<String> // codes
 )
-
 
 
 data class TaskCreateDTO(
@@ -233,7 +231,7 @@ data class TaskCreateDTO(
     @field:Future(message = "The date must be in the future")
     val dueDate: Instant?,
 
-    @field:NotNull(message = "Category selection is required")
+    @field:NotNull(message = "Board selection is required")
     val boardId: UUID,
 
     @field:NotNull(message = "Task owner is required")
@@ -275,7 +273,6 @@ data class TaskResponseDTO(
 )
 
 
-
 data class TaskStateCreate(
     val name: String,
     val code: String
@@ -301,6 +298,8 @@ data class FileDto(
 )
 
 data class ChangePositionDTO(
+    @field:NotNull(message = "New position is required")
+    @field:Pattern(regexp = "^[A-Z]+$", message = "New Position must contain only letters")
     val position: Position
 )
 
@@ -350,6 +349,12 @@ data class UserInfo(
 data class TenantInfo(
     val tenantId: UUID,
     val tenantName: String
+)
+
+data class UserUpdateRoleDTO(
+    @field:NotNull(message = "New position is required")
+    @field:Pattern(regexp = "^[A-Z_]+$", message = "Role code must contain only uppercase letters and underscores")
+    val roleCode: String
 )
 
 data class CurrentUserResponse(

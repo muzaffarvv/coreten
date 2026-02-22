@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.security.core.GrantedAuthority
 import org.springframework.security.core.authority.SimpleGrantedAuthority
+import org.springframework.security.core.context.SecurityContextHolder
 import java.util.UUID
 
 class CustomUserDetails(
@@ -109,5 +110,18 @@ class CustomUserDetailsService(
     @Transactional(readOnly = true)
     fun loadCustomUserByPhoneNum(phoneNum: String): CustomUserDetails {
         return loadUserByUsername(phoneNum) as CustomUserDetails
+    }
+
+    @Transactional(readOnly = true)
+    fun getCurrentUser(): CustomUserDetails {
+        val authentication = SecurityContextHolder.getContext().authentication
+            ?: throw UnauthorizedException("User not authenticated")
+
+        if (!authentication.isAuthenticated) {
+            throw UnauthorizedException("User not authenticated")
+        }
+
+        return authentication.principal as? CustomUserDetails
+            ?: throw UnauthorizedException("Invalid authentication principal")
     }
 }

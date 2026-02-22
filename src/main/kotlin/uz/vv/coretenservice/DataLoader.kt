@@ -55,7 +55,7 @@ class SecurityDataInitializer(
     }
 
     private fun createSuperAdminUser() {
-        val adminPhone = "+998101001010"
+        val adminPhone = "998101001010"
         if (userRepo.findByPhoneNumAndDeletedFalse(adminPhone) == null) {
             val superRole = roleService.getByCode("SUPER_ADMIN")
 
@@ -110,6 +110,7 @@ class SecurityDataInitializer(
                 permissions["USER_CREATE"]!!,
                 permissions["USER_UPDATE"]!!,
                 permissions["USER_DELETE"]!!,
+
                 permissions["TENANT_READ"]!!,
                 permissions["TENANT_CREATE"]!!,
                 permissions["TENANT_UPDATE"]!!,

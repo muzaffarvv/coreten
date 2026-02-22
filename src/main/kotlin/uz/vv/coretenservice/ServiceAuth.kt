@@ -123,6 +123,29 @@ class AuthService(
         return buildAuthResponse(userDetails, targetTenantId)
     }
 
+    @Transactional(readOnly = true)
+    fun getCurrent(): UserInfo {
+
+        val userDetails = customUserDetailsService.getCurrentUser()
+
+        val currentTenantId = userDetails.getDefaultTenantId()
+
+        val tenantInfos = userDetails.availableTenantIds.map {
+            TenantInfo(it, "Tenant-$it")
+        }.toSet()
+
+        return UserInfo(
+            userId = userDetails.userId,
+            phoneNum = userDetails.username,
+            firstName = userDetails.firstName,
+            lastName = userDetails.lastName,
+            employeeId = userDetails.employeeId,
+            currentTenantId = currentTenantId,
+            availableTenants = tenantInfos,
+            roles = userDetails.authorities.map { it.authority }
+        )
+    }
+
     private fun buildAuthResponse(
         userDetails: CustomUserDetails,
         currentTenantId: UUID?
