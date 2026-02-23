@@ -82,7 +82,10 @@ data class PermissionDto(
 data class TenantCreateDTO(
     @field:NotBlank(message = "Company name can't be empty")
     @field:Size(min = 2, max = 72, message = "The name is too short or too long")
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Tenant name must contain only letters")
+    @field:Pattern(
+        regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$",
+        message = "Tenant name must contain only letters"
+    )
     val name: String,
 
     @field:Size(max = 72, message = "The address is too long")
@@ -94,7 +97,10 @@ data class TenantCreateDTO(
 
 data class TenantUpdateDTO(
     @field:Size(min = 2, max = 72, message = "The name is too short or too long")
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Tenant name must contain only letters")
+    @field:Pattern(
+        regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$",
+        message = "Tenant name must contain only letters"
+    )
     val name: String?,
 
     @field:Size(max = 72, message = "The address is too long")
@@ -148,7 +154,10 @@ data class ProjectCreateDTO(
 
     @field:NotBlank(message = "Project name is required")
     @field:Size(min = 2, max = 72, message = "Project name must be between 2 and 72 characters")
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Project name must contain only letters")
+    @field:Pattern(
+        regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$",
+        message = "Project name must contain only letters"
+    )
     val name: String,
 
     @field:Size(max = 320, message = "Description is too long")
@@ -161,7 +170,10 @@ data class ProjectCreateDTO(
 data class ProjectUpdateDTO(
 
     @field:Size(min = 2, max = 72, message = "Project name must be between 2 and 72 characters")
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Project name must contain only letters")
+    @field:Pattern(
+        regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$",
+        message = "Project name must contain only letters"
+    )
     val name: String?,
 
     @field:Size(max = 320, message = "Description is too long")
@@ -182,7 +194,10 @@ data class ProjectResponseDTO(
 data class BoardCreateDTO(
 
     @field:NotBlank(message = "Board name is required")
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Board name must contain only letters")
+    @field:Pattern(
+        regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$",
+        message = "Board name must contain only letters"
+    )
     @field:Size(min = 2, max = 72)
     val name: String,
 
@@ -197,7 +212,10 @@ data class BoardCreateDTO(
 data class BoardUpdateDTO(
 
     @field:Size(min = 2, max = 72)
-    @field:Pattern(regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$", message = "Board name must contain only letters")
+    @field:Pattern(
+        regexp = "^[A-Za-zА-Яа-яЁё]+(?: [A-Za-zА-Яа-яЁё]+)*$",
+        message = "Board name must contain only letters"
+    )
     val name: String?,
 
     @field:Size(max = 320, message = "Description is too long")
@@ -233,11 +251,6 @@ data class TaskCreateDTO(
 
     @field:NotNull(message = "Board selection is required")
     val boardId: UUID,
-
-    @field:NotNull(message = "Task owner is required")
-    val ownerId: UUID,
-
-    val fileIds: Set<UUID> = emptySet()
 )
 
 data class TaskUpdateDTO(

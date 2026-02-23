@@ -111,7 +111,7 @@ class TenantController(private val tenantService: TenantService) {
         created(tenantService.create(dto), "/api/v1/tenants")
 
     @GetMapping("/{id}")
-    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
     fun getById(@PathVariable id: UUID): ResponseEntity<ResponseVO<TenantResponseDTO>> =
         ok(tenantService.getById(id), "/api/v1/tenants/$id")
 
@@ -134,7 +134,7 @@ class TenantController(private val tenantService: TenantService) {
     )
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {
         tenantService.delete(id)
         return noContent()
@@ -147,7 +147,7 @@ class TenantController(private val tenantService: TenantService) {
 class EmployeeController(private val employeeService: EmployeeService) {
 
     @PostMapping
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
     fun create(@Valid @RequestBody dto: EmployeeCreateDTO): ResponseEntity<ResponseVO<EmployeeResponseDTO>> =
         created(employeeService.create(dto), "/api/v1/employees")
 
@@ -167,6 +167,7 @@ class EmployeeController(private val employeeService: EmployeeService) {
         ok(employeeService.getAllByTenantId(tenantId), "/api/v1/employees/tenant/$tenantId")
 
     @GetMapping("/{id}/position")
+    @PreAuthorize("@tenantAuth.isAtLeast('ADMIN')")
     fun getPosition(@PathVariable id: UUID): ResponseEntity<ResponseVO<Position>> =
         ok(employeeService.getPosition(id), "/api/v1/employees/$id/position")
 
@@ -290,6 +291,14 @@ class TaskController(private val taskService: TaskService) {
     @GetMapping("/board/{boardId}")
     fun getByBoard(@PathVariable boardId: UUID): ResponseEntity<ResponseVO<List<TaskResponseDTO>>> =
         ok(taskService.getByBoardId(boardId), "/api/v1/tasks/board/$boardId")
+
+    @GetMapping("/state/{stateId}")
+    fun getByState(@PathVariable stateId: UUID): ResponseEntity<ResponseVO<List<TaskResponseDTO>>> =
+        ok(taskService.getByState(stateId), "/api/v1/tasks/state/$stateId")
+
+    @GetMapping("/my-tasks")
+    fun getMyTasks(): ResponseEntity<ResponseVO<List<TaskResponseDTO>>> =
+        ok(taskService.getMyTasks(), "/api/v1/tasks/my-tasks")
 
     @DeleteMapping("/{id}")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {

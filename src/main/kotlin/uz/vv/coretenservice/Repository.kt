@@ -66,10 +66,8 @@ interface UserRepo : BaseRepo<User> {
 
 @Repository
 interface EmployeeRepo : BaseRepo<Employee> {
-
     fun countByTenantsIdAndActiveTrueAndDeletedFalse(tenantId: UUID): Int
     fun findByUserIdAndDeletedFalse(userId: UUID): Employee?
-
     @Query("""
         SELECT DISTINCT e FROM Employee e
         JOIN FETCH e.tenants t
@@ -96,6 +94,11 @@ interface BoardRepo : BaseRepo<Board> {
     fun existsByNameAndProjectIdAndDeletedFalse(name: String, projectId: UUID): Boolean
     fun existsByNameAndProjectIdAndIdNotAndDeletedFalse(name: String, projectId: UUID, id: UUID): Boolean
 
+    @Transactional
+    @Modifying
+    @Query("UPDATE Board b SET b.deleted = true WHERE b.project.id = :projectId")
+    fun softDeleteByProjectId(@Param("projectId") projectId: UUID)
+
     // Solution to problem N+1
     @Query(
         """
@@ -120,7 +123,19 @@ interface BoardRepo : BaseRepo<Board> {
 
 @Repository
 interface TaskRepo : BaseRepo<Task> {
-
+    @Query("""
+    select distinct t from Task t
+    join t.assignees a
+    join t.board b
+    join b.project p
+    where a.id = :employeeId
+      and p.tenant.id = :tenantId
+      and t.deleted = false
+""")
+    fun findAllAssignedTasks(
+        @Param("employeeId") employeeId: UUID,
+        @Param("tenantId") tenantId: UUID
+    ): List<Task>
     @Query("""
         SELECT DISTINCT t FROM Task t
         LEFT JOIN FETCH t.assignees
@@ -128,6 +143,23 @@ interface TaskRepo : BaseRepo<Task> {
         WHERE t.board.id = :boardId AND t.deleted = false
     """)
     fun findAllByBoardIdWithAssigneesAndFiles(@Param("boardId") boardId: UUID): List<Task>
+    fun findAllByStateIdAndDeletedFalse(stateId: UUID): List<Task>
+    fun countByStateIdAndDeletedFalse(stateId: UUID): Long
+    @Transactional
+    @Modifying
+    @Query("UPDATE Task t SET t.deleted = true WHERE t.board.id = :boardId")
+    fun softDeleteByBoardId(@Param("boardId") boardId: UUID)
+}
+
+@Repository
+interface TaskStateRepo : BaseRepo<TaskState> {
+    @Transactional
+    @Modifying
+    @Query("UPDATE TaskState s SET s.deleted = true WHERE s.board.id = :boardId")
+    fun softDeleteByBoardId(@Param("boardId") boardId: UUID)
+    fun existsByBoardIdAndCode(boardId: UUID, code: String): Boolean
+    fun findByBoardIdAndCode(boardId: UUID, code: String): TaskState?
+    fun findAllByBoardId(boardId: UUID): List<TaskState>
 }
 
 @Repository
@@ -145,12 +177,5 @@ interface RoleRepo : BaseRepo<Role> {
 @Repository
 interface PermissionRepo : BaseRepo<Permission> {
     fun findByCode(code: String): Permission?
-}
-
-@Repository
-interface TaskStateRepo : BaseRepo<TaskState> {
-    fun existsByBoardIdAndCode(boardId: UUID, code: String): Boolean
-    fun findByBoardIdAndCode(boardId: UUID, code: String): TaskState?
-    fun findAllByBoardId(boardId: UUID): List<TaskState>
 }
 

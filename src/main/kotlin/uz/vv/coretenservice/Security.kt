@@ -14,7 +14,7 @@ object TenantContext {
 
     fun getTenantId(): UUID {
         return currentTenantId.get()
-            ?: throw IllegalStateException("Tenant context not set. Ensure JWT contains tenantId claim.")
+            ?: throw TenantNotFoundException("Tenant context not set. Ensure JWT contains tenantId claim.")
     }
 
     fun getTenantIdOrNull(): UUID? {
@@ -31,7 +31,7 @@ object TenantContext {
 
     fun getEmployeeIdOrThrow(): UUID {
         return currentEmployeeId.get()
-            ?: throw IllegalStateException("Employee context not set. Ensure user has employee record.")
+            ?: throw EmployeeNotFoundException("Employee context not set. Ensure user has employee record.")
     }
 
     fun setUserId(userId: UUID?) {
@@ -44,7 +44,7 @@ object TenantContext {
 
     fun getUserIdOrThrow(): UUID {
         return currentUserId.get()
-            ?: throw IllegalStateException("User context not set")
+            ?: throw UserNotFoundException("User context not set. Ensure JWT contains userId claim.")
     }
 
     fun clear() {

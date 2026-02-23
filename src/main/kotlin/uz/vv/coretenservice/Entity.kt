@@ -183,7 +183,7 @@ class Board(
     @Column(nullable = false)
     var active: Boolean = true,
 
-    @OneToMany(mappedBy = "board", cascade = [CascadeType.ALL], orphanRemoval = true)
+    @OneToMany(mappedBy = "board", fetch = FetchType.LAZY)
     var states: MutableList<TaskState> = mutableListOf()
 
 ) : BaseEntity() {
@@ -212,7 +212,7 @@ class TaskState(
     @Column(nullable = false, length = 75)
     var name: String,
 
-    @ManyToOne(optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "board_id")
     var board: Board
 ) : BaseEntity()
