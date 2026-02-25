@@ -123,6 +123,8 @@ interface BoardRepo : BaseRepo<Board> {
 
 @Repository
 interface TaskRepo : BaseRepo<Task> {
+    @EntityGraph(attributePaths = ["assignees", "state", "board"])
+    fun findTaskByIdAndDeletedFalse(id: UUID): Task?
     @Query("""
     select distinct t from Task t
     join t.assignees a
@@ -149,6 +151,12 @@ interface TaskRepo : BaseRepo<Task> {
     @Modifying
     @Query("UPDATE Task t SET t.deleted = true WHERE t.board.id = :boardId")
     fun softDeleteByBoardId(@Param("boardId") boardId: UUID)
+}
+
+@Repository
+interface TaskActionRepo: BaseRepo<TaskAction> {
+    @EntityGraph(attributePaths = ["modifier.user", "task"])
+    fun findAllByTaskId(taskId: UUID): List<TaskAction>
 }
 
 @Repository

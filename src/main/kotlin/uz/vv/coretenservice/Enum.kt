@@ -27,6 +27,18 @@ enum class TaskPriority {
 }
 // LOW < MEDIUM_LOW < MEDIUM < MEDIUM_HIGH < HIGH < CRITICAL
 
+enum class TaskActionType {
+    CREATED,
+    UPDATED,
+    TASK_STATE_CHANGED,
+    ASSIGNED,
+    UNASSIGNED,
+    FILE_UPLOADED,
+    FILE_DELETED,
+    TASK_ALL_FILES_DELETED,
+    DELETED
+}
+
 enum class FileType {
     DOCUMENT,
     IMAGE,

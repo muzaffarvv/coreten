@@ -154,6 +154,40 @@ class TaskMapper : BaseMapper<Task, TaskResponseDTO> {
         )
 }
 
+@Component
+class TaskActionMapper {
+
+    fun toResponse(entity: TaskAction, modifierName: String ): TaskActionResponse =
+        TaskActionResponse(
+            id = entity.id!!,
+            taskId = entity.task.id!!,
+            modifierId = entity.modifier.id!!,
+            modifierName = modifierName,
+            actionType = entity.actionType,
+            oldValue = entity.oldValue,
+            newValue = entity.newValue,
+            comment = entity.comment,
+            createdAt = entity.createdAt!!
+        )
+
+    fun createEntity(
+        task: Task,
+        modifier: Employee,
+        type: TaskActionType,
+        oldVal: String? = null,
+        newVal: String? = null,
+        comment: String? = null
+    ): TaskAction = TaskAction(
+        task = task,
+        modifier = modifier,
+        actionType = type,
+        oldValue = oldVal,
+        newValue = newVal,
+        comment = comment
+    )
+}
+
+
 fun TaskState.toResponse(): TaskStateDto =
     TaskStateDto(board.id!!, code, name)
 

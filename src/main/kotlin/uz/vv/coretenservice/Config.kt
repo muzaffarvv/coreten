@@ -124,7 +124,8 @@ class SecurityAuditorAware : AuditorAware<UUID> {
 
         if (authentication == null ||
             !authentication.isAuthenticated ||
-            authentication.principal == "anonymousUser") {
+            authentication.principal == "anonymousUser"
+        ) {
             return Optional.empty()
         }
 

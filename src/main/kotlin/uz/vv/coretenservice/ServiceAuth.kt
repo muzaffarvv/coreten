@@ -97,7 +97,6 @@ class AuthService(
 
         val userDetails = customUserDetailsService.loadCustomUserByPhoneNum(user.phoneNum)
 
-        // Maintain the same tenant context if possible
         val currentTenantId = userDetails.getDefaultTenantId()
 
         logger.info("Token refreshed for user: ${user.phoneNum}")

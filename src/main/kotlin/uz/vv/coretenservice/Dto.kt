@@ -42,7 +42,6 @@ data class UserUpdate(
     val lastName: String?,
 )
 
-
 data class UserUpdateSecurity(
     @field:Pattern(
         regexp = "^998\\d{9}$|^\\+998\\d{9}$",
@@ -256,20 +255,12 @@ data class TaskUpdateDTO(
     @field:Size(max = 255, message = "The title is too long")
     val title: String?,
 
-    val description: String?,
-
     val priority: TaskPriority?,
 
     @field:JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd-MM-yyyy", timezone = "UTC")
     @field:Future(message = "The date must be in the future")
     val dueDate: Instant?,
-
-    val stateId: UUID?,
-
-    val boardId: UUID?,
-
-    val fileIds: Set<UUID>?
-)
+    )
 
 data class TaskResponseDTO(
     val id: UUID,
@@ -282,6 +273,18 @@ data class TaskResponseDTO(
     val assignees: Set<UUID>,
     val state: String, // code
     val files: Set<FileDto>
+)
+
+data class TaskActionResponse(
+    val id: UUID?,
+    val taskId: UUID,
+    val modifierName: String,
+    val modifierId: UUID,
+    val actionType: TaskActionType,
+    val oldValue: String?,
+    val newValue: String?,
+    val comment: String?,
+    val createdAt: Instant?
 )
 
 

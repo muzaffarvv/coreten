@@ -24,7 +24,8 @@ class RoleNotFoundException(msg: String? = null) : BaseException(ErrorCode.ROLE_
 
 class TenantNotFoundException(msg: String? = null) : BaseException(ErrorCode.TENANT_NOT_FOUND, msg)
 class TenantAlreadyExistsException(msg: String? = null) : BaseException(ErrorCode.TENANT_ALREADY_EXISTS, msg)
-class TenantSubscriptionLimitExceededException(msg: String? = null) : BaseException(ErrorCode.TENANT_SUBSCRIPTION_LIMIT_EXCEEDED, msg)
+class TenantSubscriptionLimitExceededException(msg: String? = null) :
+    BaseException(ErrorCode.TENANT_SUBSCRIPTION_LIMIT_EXCEEDED, msg)
 
 class EmployeeNotFoundException(msg: String? = null) : BaseException(ErrorCode.EMPLOYEE_NOT_FOUND, msg)
 

@@ -280,7 +280,29 @@ class Task(
 
 ) : BaseEntity()
 
+@Entity
+class TaskAction(
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "task_id", nullable = false, updatable = false)
+    val task: Task,
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "action_by_id", nullable = false, updatable = false)
+    val modifier: Employee,
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50, updatable = false)
+    val actionType: TaskActionType,
+
+    @Column(updatable = false)
+    val oldValue: String? = null,
+
+    @Column(updatable = false)
+    val newValue: String? = null,
+
+    @Column(length = 150, updatable = false)
+    val comment: String? = null
+) : BaseEntity()
 
 
 @Entity

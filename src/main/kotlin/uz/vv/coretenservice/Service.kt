@@ -577,7 +577,6 @@ class ProjectService(
 
         repository.trash(project.id!!)
     }
-
 }
 
 
@@ -670,7 +669,6 @@ class BoardService(
     }
 }
 
-
 @Service
 class TaskService(
     repo: TaskRepo,
@@ -679,7 +677,8 @@ class TaskService(
     private val employeeService: EmployeeService,
     private val taskStateService: TaskStateService,
     private val fileService: FileService,
-    private val tenantSecurityService: TenantSecurityService
+    private val tenantSecurityService: TenantSecurityService,
+    private val taskActionService: TaskActionService
 ) : BaseServiceImpl<
         Task,
         TaskCreateDTO,
@@ -689,10 +688,16 @@ class TaskService(
         TaskRepo
         >(repo, mapper) {
 
+    private fun getCurrentEmployee() = employeeService.getEmployee(TenantContext.getEmployeeIdOrThrow())
+
     @Transactional
     override fun create(dto: TaskCreateDTO): TaskResponseDTO {
         val entity = toEntity(dto)
-        return mapper.toResponse(repository.save(entity))
+        val savedTask = repository.save(entity)
+
+        taskActionService.log(savedTask, getCurrentEmployee(), TaskActionType.CREATED, null, savedTask.title)
+
+        return mapper.toResponse(savedTask)
     }
 
     override fun toEntity(dto: TaskCreateDTO): Task {
@@ -715,96 +720,111 @@ class TaskService(
     @Transactional
     override fun update(id: UUID, dto: TaskUpdateDTO): TaskResponseDTO {
         val entity = getByIdOrThrow(id)
+
+        val oldTitle = entity.title
+
         val updated = updateEntity(dto, entity)
-        return mapper.toResponse(repository.save(updated))
+
+        val savedTask = repository.save(updated)
+
+        if (oldTitle != savedTask.title) {
+            taskActionService.log(
+                task = savedTask,
+                modifier = getCurrentEmployee(),
+                type = TaskActionType.UPDATED,
+                oldValue = oldTitle,
+                newValue = savedTask.title,
+                comment = "Vazifa tahrirlandi"
+            )
+        }
+
+        return mapper.toResponse(savedTask)
     }
 
     override fun updateEntity(dto: TaskUpdateDTO, entity: Task): Task {
+        dto.title?.takeIf { it != entity.title }?.let { entity.title = it }
+        dto.priority?.takeIf { it != entity.priority }    ?.let { entity.priority = it }
+        dto.dueDate?.takeIf { it != entity.dueDate }?.let { entity.dueDate = it }
 
-        dto.title?.let { entity.title = it }
-        dto.description?.let { entity.description = it }
-        dto.priority?.let { entity.priority = it }
-        dto.dueDate?.let { entity.dueDate = it }
-
-        dto.stateId?.let {
-            val newState = taskStateService.getByIdOrThrow(it)
-            if (newState.board.id != entity.board.id)
-                throw TaskStateMismatchException("State does not belong to this task's board")
-            entity.state = newState
-        }
-
-        dto.boardId?.let { newBoardId ->
-            val newBoard = boardService.getBoard(newBoardId)
-
-            if (newBoard.id != entity.board.id) {
-                val defaultState = taskStateService.getByCode(newBoard.id!!, "NEW")
-                entity.board = newBoard
-                entity.state = defaultState
-            }
-        }
-
-        dto.fileIds?.let {
-            val files = fileService.getAllByIds(it.toList())
-            entity.files = files.toMutableSet()
-        }
         return entity
     }
 
     override fun getByIdOrThrow(id: UUID): Task {
-        val task = repository.findByIdAndDeletedFalse(id)
+        val task = repository.findTaskByIdAndDeletedFalse(id)
             ?: throw TaskNotFoundException("Task not found with ID: $id")
 
         tenantSecurityService.validateEntityTenantAccess(
             task.board.project.tenant.id,
             "Task"
         )
-
         return task
     }
 
     @Transactional
     fun assignEmployee(taskId: UUID, employeeId: UUID): TaskResponseDTO {
         val task = getByIdOrThrow(taskId)
-
         val employee = employeeService.getEmployee(employeeId)
 
-        if (task.assignees.any { it.id == employee.id }) {
+        if (task.assignees.any { it.id == employeeId }) {
             throw BadRequestException("Employee is already assigned to this task")
         }
 
         task.assignees.add(employee)
+        val savedTask = repository.saveAndRefresh(task)
 
-        return mapper.toResponse(repository.saveAndRefresh(task))
+        taskActionService.log(
+            savedTask,
+            getCurrentEmployee(),
+            TaskActionType.ASSIGNED,
+            null,
+            employeeId.toString(),
+            "Assigned new employee"
+        )
+
+        return mapper.toResponse(savedTask)
     }
 
     @Transactional
     fun unassignEmployee(taskId: UUID, employeeId: UUID): TaskResponseDTO {
         val task = getByIdOrThrow(taskId)
+        employeeService.getEmployee(employeeId)
 
         val removed = task.assignees.removeIf { it.id == employeeId }
         if (!removed) throw EmployeeNotFoundException("Employee not assigned to task")
 
-        return mapper.toResponse(repository.saveAndRefresh(task))
+        val savedTask = repository.saveAndRefresh(task)
+
+        taskActionService.log(
+            savedTask,
+            getCurrentEmployee(),
+            TaskActionType.UNASSIGNED,
+            employeeId.toString(),
+            null
+        )
+
+        return mapper.toResponse(savedTask)
     }
 
     @Transactional
     fun changeState(taskId: UUID, newStateCode: String): TaskResponseDTO {
         val task = getByIdOrThrow(taskId)
-        val boardId = task.board.id!!
+        val oldState = task.state.name
 
+        val boardId = task.board.id!!
         val newState = taskStateService.getByCode(boardId, newStateCode)
 
         task.state = newState
+        val savedTask = repository.saveAndRefresh(task)
 
-        return mapper.toResponse(repository.saveAndRefresh(task))
+        taskActionService.log(savedTask, getCurrentEmployee(), TaskActionType.TASK_STATE_CHANGED, oldState, newState.name)
+
+        return mapper.toResponse(savedTask)
     }
 
     @Transactional(readOnly = true)
     fun getByBoardId(boardId: UUID): List<TaskResponseDTO> {
         val board = boardService.getBoard(boardId)
-
         val tasks = repository.findAllByBoardIdWithAssigneesAndFiles(board.id!!)
-
         return mapper.toListResponse(tasks)
     }
 
@@ -826,16 +846,31 @@ class TaskService(
     @Transactional
     override fun delete(id: UUID) {
         val task = getByIdOrThrow(id)
+
+        taskActionService.log(task, getCurrentEmployee(), TaskActionType.DELETED, task.title, null)
+
         repository.trash(task.id!!)
     }
 }
 
+
+interface FileService {
+    fun upload(file: MultipartFile): File
+    fun download(keyName: String): Resource
+    fun getByKey(keyName: String): File
+    fun getAllByIds(ids: List<UUID>): List<File>
+    fun delete(id: UUID)
+    fun deleteByKeyName(keyName: String)
+}
+
 @Service
-class FileService(
+class FileServiceImpl(
     private val fileRepo: FileRepo,
-    @Value("\${file.upload-dir:uploads}") private val uploadDir: String,
-    @Value("\${file.max-size:10485760}") private val maxSize: Long
-) {
+    @Value("\${file.upload-dir:uploads}")
+    private val uploadDir: String,
+    @Value("\${file.max-size:10485760}")
+    private val maxSize: Long
+) : FileService {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -852,7 +887,7 @@ class FileService(
     }
 
     @Transactional
-    fun upload(file: MultipartFile): File {
+    override fun upload(file: MultipartFile): File {
         if (file.isEmpty) throw FileEmptyException("File is empty")
         if (file.size > maxSize) throw FileTooLargeException("File size exceeds limit")
 
@@ -890,7 +925,7 @@ class FileService(
         )
     }
 
-    fun download(keyName: String): Resource {
+    override fun download(keyName: String): Resource {
         val file = getByKey(keyName)
         val path = Paths.get(file.path)
 
@@ -901,12 +936,12 @@ class FileService(
         return resource
     }
 
-    fun getByKey(keyName: String): File =
+    override fun getByKey(keyName: String): File =
         fileRepo.findByKeyNameAndDeletedFalse(keyName)
             ?: throw FileNotFoundException("File not found: $keyName")
 
     @Transactional(readOnly = true)
-    fun getAllByIds(ids: List<UUID>): List<File> {
+    override fun getAllByIds(ids: List<UUID>): List<File> {
         if (ids.isEmpty()) return emptyList()
 
         val files = fileRepo.findAllByIdInAndDeletedFalse(ids)
@@ -920,7 +955,7 @@ class FileService(
     }
 
     @Transactional
-    fun delete(id: UUID) {
+    override fun delete(id: UUID) {
         val file = fileRepo.findById(id)
             .orElseThrow { FileNotFoundException("File not found: $id") }
 
@@ -931,7 +966,7 @@ class FileService(
     }
 
     @Transactional
-    fun deleteByKeyName(keyName: String) {
+    override fun deleteByKeyName(keyName: String) {
         val file = fileRepo.findByKeyNameAndDeletedFalse(keyName)
             ?: throw FileNotFoundException("File not found: $keyName")
 
@@ -972,6 +1007,59 @@ class FileService(
         }
 }
 
+interface TaskActionService {
+
+    fun getAllByTaskId(taskId: UUID): List<TaskActionResponse>
+
+    fun log(
+        task: Task,
+        modifier: Employee,
+        type: TaskActionType,
+        oldValue: String? = null,
+        newValue: String? = null,
+        comment: String? = null
+    )
+}
+
+@Service
+class TaskActionServiceImpl(
+    private val taskActionRepo: TaskActionRepo,
+    private val taskActionMapper: TaskActionMapper
+) : TaskActionService {
+
+    @Transactional(readOnly = true)
+    override fun getAllByTaskId(taskId: UUID): List<TaskActionResponse> {
+        val actions = taskActionRepo.findAllByTaskId(taskId)
+
+        return actions.map { entity ->
+            val fullName = entity.modifier.user.let {
+                "${it.firstName} ${it.lastName}".trim()
+            }
+
+            taskActionMapper.toResponse(entity, fullName)
+        }
+    }
+
+    @Transactional
+    override fun log(
+        task: Task,
+        modifier: Employee,
+        type: TaskActionType,
+        oldValue: String?,
+        newValue: String?,
+        comment: String?
+    ) {
+        val action = taskActionMapper.createEntity(
+            task = task,
+            modifier = modifier,
+            type = type,
+            oldVal = oldValue,
+            newVal = newValue,
+            comment = comment
+        )
+        taskActionRepo.save(action)
+    }
+}
 
 @Service
 class TenantSecurityService {
@@ -980,7 +1068,7 @@ class TenantSecurityService {
 
     fun validateTenantAccess(requiredTenantId: UUID?) {
         if (requiredTenantId == null) {
-            return // No tenant requirement
+            return
         }
 
         val currentTenantId = TenantContext.getTenantIdOrNull()

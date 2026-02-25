@@ -16,6 +16,7 @@ class SecurityDataInitializer(
 ) : CommandLineRunner {
 
     private val logger = LoggerFactory.getLogger(SecurityDataInitializer::class.java)
+
     companion object {
         private val SYSTEM_SUPER_ADMIN_ID = UUID.fromString("00000000-0000-0000-0000-000000000000")
     }
