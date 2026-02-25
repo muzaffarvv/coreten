@@ -152,10 +152,12 @@ class EmployeeController(private val employeeService: EmployeeService) {
         created(employeeService.create(dto), "/api/v1/employees")
 
     @GetMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
     fun getById(@PathVariable id: UUID): ResponseEntity<ResponseVO<EmployeeResponseDTO>> =
         ok(employeeService.getById(id), "/api/v1/employees/$id")
 
     @PutMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('ADMIN')")
     fun update(
         @PathVariable id: UUID,
         @Valid @RequestBody dto: EmployeeUpdateDTO
@@ -163,6 +165,7 @@ class EmployeeController(private val employeeService: EmployeeService) {
         ok(employeeService.update(id, dto), "/api/v1/employees/$id")
 
     @GetMapping("/tenant/{tenantId}")
+    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
     fun getByTenant(@PathVariable tenantId: UUID): ResponseEntity<ResponseVO<List<EmployeeResponseDTO>>> =
         ok(employeeService.getAllByTenantId(tenantId), "/api/v1/employees/tenant/$tenantId")
 
@@ -172,12 +175,14 @@ class EmployeeController(private val employeeService: EmployeeService) {
         ok(employeeService.getPosition(id), "/api/v1/employees/$id/position")
 
     @PatchMapping("/{id}/position")
+    @PreAuthorize("@tenantAuth.isAtLeast('ADMIN')")
     fun changePosition(
         @PathVariable id: UUID,
         @Valid @RequestBody dto: ChangePositionDTO
     ): ResponseEntity<ResponseVO<EmployeeResponseDTO>> =
         ok(employeeService.changePosition(id, dto), "/api/v1/employees/$id/position")
 
+    @PreAuthorize("@tenantAuth.isAtLeast('ADMIN')")
     @DeleteMapping("/{id}")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {
         employeeService.delete(id)
@@ -191,18 +196,22 @@ class EmployeeController(private val employeeService: EmployeeService) {
 class ProjectController(private val projectService: ProjectService) {
 
     @PostMapping
+    @PreAuthorize("@tenantAuth.isAtLeast('ADMIN')")
     fun create(@Valid @RequestBody dto: ProjectCreateDTO): ResponseEntity<ResponseVO<ProjectResponseDTO>> =
         created(projectService.create(dto), "/api/v1/projects")
 
     @GetMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getById(@PathVariable id: UUID): ResponseEntity<ResponseVO<ProjectResponseDTO>> =
         ok(projectService.getById(id), "/api/v1/projects/$id")
 
     @GetMapping("/tenant/{tenantId}")
+    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getByTenant(@PathVariable tenantId: UUID): ResponseEntity<ResponseVO<List<ProjectResponseDTO>>> =
         ok(projectService.getAllByTenantId(tenantId), "/api/v1/projects/tenant/$tenantId")
 
     @PutMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('ADMIN')")
     fun update(
         @PathVariable id: UUID,
         @Valid @RequestBody dto: ProjectUpdateDTO
@@ -210,6 +219,7 @@ class ProjectController(private val projectService: ProjectService) {
         ok(projectService.update(id, dto), "/api/v1/projects/$id")
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('ADMIN')")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {
         projectService.delete(id)
         return noContent()
@@ -222,18 +232,22 @@ class ProjectController(private val projectService: ProjectService) {
 class BoardController(private val boardService: BoardService) {
 
     @PostMapping
+    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
     fun create(@Valid @RequestBody dto: BoardCreateDTO): ResponseEntity<ResponseVO<BoardResponseDTO>> =
         created(boardService.create(dto), "/api/v1/boards")
 
     @GetMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getById(@PathVariable id: UUID): ResponseEntity<ResponseVO<BoardResponseDTO>> =
         ok(boardService.getById(id), "/api/v1/boards/$id")
 
     @GetMapping("/project/{projectId}")
+    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getByProject(@PathVariable projectId: UUID): ResponseEntity<ResponseVO<List<BoardResponseDTO>>> =
         ok(boardService.getAllByProject(projectId), "/api/v1/boards/project/$projectId")
 
     @PutMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
     fun update(
         @PathVariable id: UUID,
         @Valid @RequestBody dto: BoardUpdateDTO
@@ -241,6 +255,7 @@ class BoardController(private val boardService: BoardService) {
         ok(boardService.update(id, dto), "/api/v1/boards/$id")
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {
         boardService.delete(id)
         return noContent()
@@ -253,14 +268,17 @@ class BoardController(private val boardService: BoardService) {
 class TaskController(private val taskService: TaskService) {
 
     @PostMapping
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun create(@Valid @RequestBody dto: TaskCreateDTO): ResponseEntity<ResponseVO<TaskResponseDTO>> =
         created(taskService.create(dto), "/api/v1/tasks")
 
     @GetMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getById(@PathVariable id: UUID): ResponseEntity<ResponseVO<TaskResponseDTO>> =
         ok(taskService.getById(id), "/api/v1/tasks/$id")
 
     @PutMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun update(
         @PathVariable id: UUID,
         @Valid @RequestBody dto: TaskUpdateDTO
@@ -268,6 +286,7 @@ class TaskController(private val taskService: TaskService) {
         ok(taskService.update(id, dto), "/api/v1/tasks/$id")
 
     @PatchMapping("/{id}/change-state")
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun changeState(
         @PathVariable id: UUID,
         @RequestParam code: String
@@ -275,6 +294,7 @@ class TaskController(private val taskService: TaskService) {
         ok(taskService.changeState(id, code), "/api/v1/tasks/$id/change-state")
 
     @PostMapping("/{taskId}/assignees/{employeeId}")
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun assignEmployee(
         @PathVariable taskId: UUID,
         @PathVariable employeeId: UUID
@@ -282,6 +302,7 @@ class TaskController(private val taskService: TaskService) {
         ok(taskService.assignEmployee(taskId, employeeId), "/api/v1/tasks/$taskId/assignees/$employeeId")
 
     @DeleteMapping("/{taskId}/assignees/{employeeId}")
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun unassignEmployee(
         @PathVariable taskId: UUID,
         @PathVariable employeeId: UUID
@@ -289,18 +310,22 @@ class TaskController(private val taskService: TaskService) {
         ok(taskService.unassignEmployee(taskId, employeeId), "/api/v1/tasks/$taskId/assignees/$employeeId")
 
     @GetMapping("/board/{boardId}")
+    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getByBoard(@PathVariable boardId: UUID): ResponseEntity<ResponseVO<List<TaskResponseDTO>>> =
         ok(taskService.getByBoardId(boardId), "/api/v1/tasks/board/$boardId")
 
     @GetMapping("/state/{stateId}")
+    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getByState(@PathVariable stateId: UUID): ResponseEntity<ResponseVO<List<TaskResponseDTO>>> =
         ok(taskService.getByState(stateId), "/api/v1/tasks/state/$stateId")
 
     @GetMapping("/my-tasks")
+    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getMyTasks(): ResponseEntity<ResponseVO<List<TaskResponseDTO>>> =
         ok(taskService.getMyTasks(), "/api/v1/tasks/my-tasks")
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {
         taskService.delete(id)
         return noContent()
@@ -313,6 +338,7 @@ class TaskController(private val taskService: TaskService) {
 class TaskStateController(private val taskStateService: TaskStateService) {
 
     @PostMapping("/board/{boardId}")
+    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
     fun create(
         @PathVariable boardId: UUID,
         @Valid @RequestBody dto: TaskStateCreate
@@ -320,10 +346,12 @@ class TaskStateController(private val taskStateService: TaskStateService) {
         created(taskStateService.create(boardId, dto), "/api/v1/task-states/board/$boardId")
 
     @GetMapping("/board/{boardId}")
+    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getAllByBoard(@PathVariable boardId: UUID): ResponseEntity<ResponseVO<List<TaskState>>> =
         ok(taskStateService.getAllByBoardId(boardId), "/api/v1/task-states/board/$boardId")
 
     @PostMapping("/{id}/copy-to/{toBoardId}")
+    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
     fun copyState(
         @PathVariable id: UUID,
         @PathVariable toBoardId: UUID
@@ -331,6 +359,7 @@ class TaskStateController(private val taskStateService: TaskStateService) {
         ok(taskStateService.copyState(id, toBoardId), "/api/v1/task-states/$id/copy-to/$toBoardId")
 
     @PutMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
     fun update(
         @PathVariable id: UUID,
         @Valid @RequestBody dto: TaskStateUpdate
@@ -338,6 +367,7 @@ class TaskStateController(private val taskStateService: TaskStateService) {
         ok(taskStateService.update(id, dto), "/api/v1/task-states/$id")
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('MANAGER')")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {
         taskStateService.delete(id)
         return noContent()
@@ -350,10 +380,12 @@ class TaskStateController(private val taskStateService: TaskStateService) {
 class FileController(private val fileService: FileService) {
 
     @PostMapping("/upload", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun upload(@RequestParam("file") file: MultipartFile): ResponseEntity<ResponseVO<File>> =
         created(fileService.upload(file), "/api/v1/files/upload")
 
     @GetMapping("/download/{keyName}")
+    @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun download(@PathVariable keyName: String): ResponseEntity<Resource> {
         val resource = fileService.download(keyName)
         val file = fileService.getByKey(keyName)
@@ -364,12 +396,14 @@ class FileController(private val fileService: FileService) {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {
         fileService.delete(id)
         return noContent()
     }
 
     @DeleteMapping("/key/{keyName}")
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun deleteByKey(@PathVariable keyName: String): ResponseEntity<Void> {
         fileService.deleteByKeyName(keyName)  // softly delete
         return noContent()

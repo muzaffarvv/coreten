@@ -82,6 +82,7 @@ class SecurityConfig(
                     .requestMatchers(
                         "/auth/login",
                         "/auth/register",
+                        "/auth/me",
                         "/auth/refresh",
                         "/error",
                         "/actuator/health"

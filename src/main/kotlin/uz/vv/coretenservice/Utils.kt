@@ -104,7 +104,9 @@ class TenantAccessUtil(
     fun isAtLeast(minPosition: Position): Boolean {
         val employeeId = TenantContext.getEmployeeId() ?: return false
         val currentPosition = employeeService.getPosition(employeeId)
-        // Check for enum order (OWNER = 0, ADMIN = 1...)
-        return currentPosition.ordinal <= minPosition.ordinal
+        println("#############################################################")
+        println("Current Position: $currentPosition (${currentPosition.ordinal})")
+        println("Required Min Position: $minPosition (${minPosition.ordinal})")
+        return currentPosition.power >= minPosition.power
     }
 }

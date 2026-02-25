@@ -299,7 +299,7 @@ class TenantService(
     repo: TenantRepo,
     mapper: TenantMapper,
     private val employeeService: EmployeeService,
-    @Lazy private val projectService: ProjectService, // Lazy not solution / interface and impl
+    @Lazy private val projectService: ProjectService, // @Lazy vaqtinchalik yechim / interface and impl
     private val tenantSecurityService: TenantSecurityService
 ) : BaseServiceImpl<
         Tenant,
@@ -364,9 +364,11 @@ class TenantService(
     @Transactional(readOnly = true)
     fun getTenant(id: UUID): Tenant = getByIdOrThrow(id)
 
-    override fun getByIdOrThrow(id: UUID): Tenant =
-        repository.findByIdAndDeletedFalse(id)
+    override fun getByIdOrThrow(id: UUID): Tenant {
+        tenantSecurityService.validateTenantAccess(id)
+        return repository.findByIdAndDeletedFalse(id)
             ?: throw TenantNotFoundException("Tenant not found with id: $id")
+    }
 
     private fun validateNameUnique(name: String, excludeId: UUID? = null) {
         val exists = if (excludeId == null)
@@ -453,13 +455,11 @@ class EmployeeService(
         entity.apply {
             dto.active?.let { active = it }
             dto.position?.let { position = it }
-            dto.tenantIds?.let {
-                tenants = tenantRepo.findAllById(it).toMutableSet()
-            }
         }
 
     @Transactional(readOnly = true)
     fun getAllByTenantId(id: UUID): List<EmployeeResponseDTO> {
+        tenantSecurityService.validateTenantAccess(id)
         val employees = repository.findActiveByTenantIdWithTenants(id)
         return mapper.toListResponse(employees)
     }
@@ -488,8 +488,6 @@ class EmployeeService(
         return mapper.toResponse(repository.save(employee))
     }
 }
-
-
 
 
 @Service
@@ -541,8 +539,10 @@ class ProjectService(
     }
 
     @Transactional(readOnly = true)
-    fun getAllByTenantId(id: UUID): List<ProjectResponseDTO> =
-        mapper.toListResponse(repository.findAllByTenantIdAndDeletedFalse(id))
+    fun getAllByTenantId(id: UUID): List<ProjectResponseDTO> {
+        tenantSecurityService.validateTenantAccess(id)
+        return mapper.toListResponse(repository.findAllByTenantIdAndDeletedFalse(id))
+    }
 
     @Transactional(readOnly = true)
     fun getProject(id: UUID): Project = getByIdOrThrow(id)
@@ -809,6 +809,7 @@ class TaskService(
     }
 
     fun getByState(stateId: UUID): List<TaskResponseDTO> {
+        taskStateService.getByIdOrThrow(stateId)
         val tasks = repository.findAllByStateIdAndDeletedFalse(stateId)
         return mapper.toListResponse(tasks)
     }
@@ -828,7 +829,6 @@ class TaskService(
         repository.trash(task.id!!)
     }
 }
-
 
 @Service
 class FileService(

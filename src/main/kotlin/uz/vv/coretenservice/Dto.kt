@@ -135,7 +135,6 @@ data class EmployeeCreateDTO(
 data class EmployeeUpdateDTO(
     val active: Boolean? = null,
     val position: Position? = null,
-    val tenantIds: Set<UUID>? = null
 )
 
 data class EmployeeResponseDTO(
@@ -311,8 +310,7 @@ data class FileDto(
 )
 
 data class ChangePositionDTO(
-    @field:NotNull(message = "New position is required")
-    @field:Pattern(regexp = "^[A-Z]+$", message = "New Position must contain only letters")
+    @field:NotNull(message = "Position is required")
     val position: Position
 )
 
@@ -368,10 +366,4 @@ data class UserUpdateRoleDTO(
     @field:NotNull(message = "New position is required")
     @field:Pattern(regexp = "^[A-Z_]+$", message = "Role code must contain only uppercase letters and underscores")
     val roleCode: String
-)
-
-data class CurrentUserResponse(
-    val userId: UUID?,
-    val currentTenantId: UUID?,
-    val currentEmployeeId: UUID?
 )

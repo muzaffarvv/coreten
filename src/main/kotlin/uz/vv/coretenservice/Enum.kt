@@ -8,13 +8,13 @@ enum class TenantPlan(val maxUsers: Int) {
     ENTERPRISE(999)
 }
 
-enum class Position {
-    OWNER,
-    ADMIN,
-    MANAGER,
-    TEAM_LEAD,
-    EMPLOYEE,
-    INTERN
+enum class Position(val power: Int) {
+    INTERN(10),
+    EMPLOYEE(20),
+    TEAM_LEAD(30),
+    MANAGER(40),
+    ADMIN(50),
+    OWNER(100);
 }
 
 enum class TaskPriority {

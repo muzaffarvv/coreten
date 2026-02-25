@@ -125,24 +125,27 @@ class AuthService(
 
     @Transactional(readOnly = true)
     fun getCurrent(): UserInfo {
+        val userId = TenantContext.getUserIdOrThrow()
+        val employeeId = TenantContext.getEmployeeId()
 
-        val userDetails = customUserDetailsService.getCurrentUser()
+        val user = userRepo.findById(userId)
+            .orElseThrow { UnauthorizedException("User not found with id: $userId") }
 
-        val currentTenantId = userDetails.getDefaultTenantId()
+        val employee = employeeId?.let { employeeRepo.findById(it).orElse(null) }
 
-        val tenantInfos = userDetails.availableTenantIds.map {
-            TenantInfo(it, "Tenant-$it")
-        }.toSet()
+        val roles = user.roles.map { it.name }
 
         return UserInfo(
-            userId = userDetails.userId,
-            phoneNum = userDetails.username,
-            firstName = userDetails.firstName,
-            lastName = userDetails.lastName,
-            employeeId = userDetails.employeeId,
-            currentTenantId = currentTenantId,
-            availableTenants = tenantInfos,
-            roles = userDetails.authorities.map { it.authority }
+            userId = user.id!!,
+            phoneNum = user.phoneNum,
+            firstName = user.firstName,
+            lastName = user.lastName,
+            employeeId = employee?.id,
+            currentTenantId = TenantContext.getTenantId(),
+            availableTenants = employee?.tenants?.map {
+                TenantInfo(it.id!!, it.name)
+            }?.toSet() ?: emptySet(),
+            roles = roles
         )
     }
 
