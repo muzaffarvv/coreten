@@ -695,7 +695,12 @@ class TaskService(
         val entity = toEntity(dto)
         val savedTask = repository.save(entity)
 
-        taskActionService.log(savedTask, getCurrentEmployee(), TaskActionType.CREATED, null, savedTask.title)
+        taskActionService.log(savedTask,
+            getCurrentEmployee(),
+            TaskActionType.CREATED,
+            null,
+            savedTask.title
+        )
 
         return mapper.toResponse(savedTask)
     }
@@ -743,7 +748,7 @@ class TaskService(
 
     override fun updateEntity(dto: TaskUpdateDTO, entity: Task): Task {
         dto.title?.takeIf { it != entity.title }?.let { entity.title = it }
-        dto.priority?.takeIf { it != entity.priority }    ?.let { entity.priority = it }
+        dto.priority?.takeIf { it != entity.priority }?.let { entity.priority = it }
         dto.dueDate?.takeIf { it != entity.dueDate }?.let { entity.dueDate = it }
 
         return entity
@@ -816,7 +821,13 @@ class TaskService(
         task.state = newState
         val savedTask = repository.saveAndRefresh(task)
 
-        taskActionService.log(savedTask, getCurrentEmployee(), TaskActionType.TASK_STATE_CHANGED, oldState, newState.name)
+        taskActionService.log(
+            savedTask,
+            getCurrentEmployee(),
+            TaskActionType.TASK_STATE_CHANGED,
+            oldState,
+            newState.name
+        )
 
         return mapper.toResponse(savedTask)
     }
@@ -847,7 +858,12 @@ class TaskService(
     override fun delete(id: UUID) {
         val task = getByIdOrThrow(id)
 
-        taskActionService.log(task, getCurrentEmployee(), TaskActionType.DELETED, task.title, null)
+        taskActionService.log(
+            task,
+            getCurrentEmployee(),
+            TaskActionType.DELETED,
+            task.title,
+            null)
 
         repository.trash(task.id!!)
     }
