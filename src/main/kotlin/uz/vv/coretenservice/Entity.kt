@@ -183,14 +183,15 @@ class Board(
     @Column(nullable = false)
     var active: Boolean = true,
 
-    @OneToMany(mappedBy = "board", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "board", fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
     var states: MutableList<TaskState> = mutableListOf()
-
 ) : BaseEntity() {
+
     fun assignDefaultStates() {
         if (this.states.isEmpty()) {
             DefaultTaskStates.DEFAULT_STATES.forEach { dto ->
-                this.states.add(TaskState(name = dto.name, code = dto.code, board = this))
+                val newState = TaskState(name = dto.name, code = dto.code, board = this)
+                this.states.add(newState)
             }
         }
     }

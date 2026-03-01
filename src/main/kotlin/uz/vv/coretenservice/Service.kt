@@ -13,7 +13,12 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
+
+private val logger = LoggerFactory.getLogger(TaskActionServiceImpl::class.java)
+
 
 @Service
 class RoleService(private val roleRepo: RoleRepo) {
@@ -316,7 +321,7 @@ class TenantService(
 
         val entity = toEntity(dto).apply { maxUsers = subscriptionPlan.maxUsers }
 
-        val saved = repository.save(entity)
+        val saved = repository.saveAndRefresh(entity)
         return mapper.toResponse(saved)
     }
 
@@ -600,10 +605,12 @@ class BoardService(
     @Transactional
     override fun create(dto: BoardCreateDTO): BoardResponseDTO {
         checkNameUniqueness(dto.name, dto.projectId)
-        return toEntity(dto)
-            .apply { assignDefaultStates() }
-            .let { repository.save(it) }
-            .let { mapper.toResponse(it) }
+
+        val board = toEntity(dto)
+        board.assignDefaultStates()
+
+        val savedBoard = repository.saveAndRefresh(board)
+        return mapper.toResponse(savedBoard)
     }
 
     override fun toEntity(dto: BoardCreateDTO): Board =
@@ -695,7 +702,8 @@ class TaskService(
         val entity = toEntity(dto)
         val savedTask = repository.save(entity)
 
-        taskActionService.log(savedTask,
+        taskActionService.log(
+            savedTask,
             getCurrentEmployee(),
             TaskActionType.CREATED,
             null,
@@ -710,12 +718,13 @@ class TaskService(
         val defaultState = taskStateService.getByCode(board.id!!, "NEW")
         val ownerId = TenantContext.getEmployeeIdOrThrow()
         val owner = employeeService.getEmployee(ownerId)
+        val dueDate: Instant? = dto.dueDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()
 
         return Task(
             title = dto.title,
             description = dto.description,
             priority = dto.priority,
-            dueDate = dto.dueDate,
+            dueDate = dueDate,
             state = defaultState,
             board = board,
             owner = owner,
@@ -747,9 +756,13 @@ class TaskService(
     }
 
     override fun updateEntity(dto: TaskUpdateDTO, entity: Task): Task {
+        val newInstantDate = dto.dueDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()
+
         dto.title?.takeIf { it != entity.title }?.let { entity.title = it }
         dto.priority?.takeIf { it != entity.priority }?.let { entity.priority = it }
-        dto.dueDate?.takeIf { it != entity.dueDate }?.let { entity.dueDate = it }
+        if (newInstantDate != entity.dueDate) {
+            entity.dueDate = newInstantDate
+        }
 
         return entity
     }
@@ -839,6 +852,7 @@ class TaskService(
         return mapper.toListResponse(tasks)
     }
 
+    @Transactional(readOnly = true)
     fun getByState(stateId: UUID): List<TaskResponseDTO> {
         taskStateService.getByIdOrThrow(stateId)
         val tasks = repository.findAllByStateIdAndDeletedFalse(stateId)
@@ -863,7 +877,8 @@ class TaskService(
             getCurrentEmployee(),
             TaskActionType.DELETED,
             task.title,
-            null)
+            null
+        )
 
         repository.trash(task.id!!)
     }
@@ -1016,10 +1031,16 @@ class FileServiceImpl(
 
     private fun resolveFileType(contentType: String?): FileType =
         when {
-            contentType == null -> throw InvalidFileTypeException()
+            contentType == null -> throw InvalidFileTypeException(
+                "Content-Type header is missing"
+            )
+
             contentType.startsWith("image") -> FileType.IMAGE
             contentType.startsWith("video") -> FileType.VIDEO
-            else -> FileType.DOCUMENT
+            else -> {
+                log.warn("Unrecognized content-type '{}', defaulting to DOCUMENT", contentType)
+                FileType.DOCUMENT
+            }
         }
 }
 
@@ -1056,7 +1077,7 @@ class TaskActionServiceImpl(
         }
     }
 
-    @Transactional
+    @Transactional()
     override fun log(
         task: Task,
         modifier: Employee,
@@ -1065,15 +1086,19 @@ class TaskActionServiceImpl(
         newValue: String?,
         comment: String?
     ) {
-        val action = taskActionMapper.createEntity(
-            task = task,
-            modifier = modifier,
-            type = type,
-            oldVal = oldValue,
-            newVal = newValue,
-            comment = comment
-        )
-        taskActionRepo.save(action)
+        try {
+            val action = taskActionMapper.createEntity(
+                task = task,
+                modifier = modifier,
+                type = type,
+                oldVal = oldValue,
+                newVal = newValue,
+                comment = comment
+            )
+            taskActionRepo.save(action)
+        } catch (ex: Exception) {
+            logger.warn("Failed to log task action [taskId=${task.id}, type=$type]: ${ex.message}")
+        }
     }
 }
 

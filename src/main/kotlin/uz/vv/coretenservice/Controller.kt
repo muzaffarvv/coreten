@@ -19,6 +19,7 @@ class AuthController(
 ) {
 
     @PostMapping("/register")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
     fun register(@Valid @RequestBody dto: UserCreateDTO): ResponseEntity<ResponseVO<AuthResponse>> {
         val authResponse = authService.register(dto)
         return created(authResponse, "/api/v1/auth/register")
@@ -265,7 +266,10 @@ class BoardController(private val boardService: BoardService) {
 
 @RestController
 @RequestMapping("/tasks")
-class TaskController(private val taskService: TaskService) {
+class TaskController(
+    private val taskService: TaskService,
+    private val taskActionService: TaskActionService
+) {
 
     @PostMapping
     @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
@@ -293,21 +297,21 @@ class TaskController(private val taskService: TaskService) {
     ): ResponseEntity<ResponseVO<TaskResponseDTO>> =
         ok(taskService.changeState(id, code), "/api/v1/tasks/$id/change-state")
 
-    @PostMapping("/{taskId}/assignees/{employeeId}")
+    @PostMapping("/assignees")
     @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun assignEmployee(
-        @PathVariable taskId: UUID,
-        @PathVariable employeeId: UUID
+        @RequestParam taskId: UUID,
+        @RequestParam employeeId: UUID
     ): ResponseEntity<ResponseVO<TaskResponseDTO>> =
-        ok(taskService.assignEmployee(taskId, employeeId), "/api/v1/tasks/$taskId/assignees/$employeeId")
+        ok(taskService.assignEmployee(taskId, employeeId), "/api/v1/tasks/assignees")
 
-    @DeleteMapping("/{taskId}/assignees/{employeeId}")
+    @DeleteMapping("/assignees")
     @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
     fun unassignEmployee(
-        @PathVariable taskId: UUID,
-        @PathVariable employeeId: UUID
+        @RequestParam taskId: UUID,
+        @RequestParam employeeId: UUID
     ): ResponseEntity<ResponseVO<TaskResponseDTO>> =
-        ok(taskService.unassignEmployee(taskId, employeeId), "/api/v1/tasks/$taskId/assignees/$employeeId")
+        ok(taskService.unassignEmployee(taskId, employeeId), "/api/v1/tasks/assignees")
 
     @GetMapping("/board/{boardId}")
     @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
@@ -323,6 +327,12 @@ class TaskController(private val taskService: TaskService) {
     @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getMyTasks(): ResponseEntity<ResponseVO<List<TaskResponseDTO>>> =
         ok(taskService.getMyTasks(), "/api/v1/tasks/my-tasks")
+
+    @GetMapping("/actions/{taskId}")
+    fun getActionsByTaskId(@PathVariable taskId: UUID): ResponseEntity<List<TaskActionResponse>> {
+        val actions = taskActionService.getAllByTaskId(taskId)
+        return ResponseEntity.ok(actions)
+    }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")

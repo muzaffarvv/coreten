@@ -3,6 +3,7 @@ package uz.vv.coretenservice
 import com.fasterxml.jackson.annotation.JsonFormat
 import jakarta.validation.constraints.*
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 data class UserCreateDTO(
@@ -243,9 +244,9 @@ data class TaskCreateDTO(
 
     val priority: TaskPriority = TaskPriority.MEDIUM_LOW,
 
-    @field:JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd-MM-yyyy", timezone = "UTC")
+    @field:JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd-MM-yyyy")
     @field:Future(message = "The date must be in the future")
-    val dueDate: Instant?,
+    val dueDate: LocalDate?,
 
     @field:NotNull(message = "Board selection is required")
     val boardId: UUID,
@@ -257,10 +258,11 @@ data class TaskUpdateDTO(
 
     val priority: TaskPriority?,
 
-    @field:JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd-MM-yyyy", timezone = "UTC")
+    @field:JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd-MM-yyyy")
     @field:Future(message = "The date must be in the future")
-    val dueDate: Instant?,
-    )
+    val dueDate: LocalDate?,
+
+)
 
 data class TaskResponseDTO(
     val id: UUID,

@@ -81,19 +81,11 @@ class SecurityConfig(
                 auth
                     .requestMatchers(
                         "/auth/login",
-                        "/auth/register",
                         "/auth/me",
                         "/auth/refresh",
                         "/error",
                         "/actuator/health"
                     ).permitAll()
-
-                    .requestMatchers(
-                        "/v3/api-docs/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html"
-                    ).permitAll()
-
                     .anyRequest().authenticated()
             }
             .authenticationProvider(authenticationProvider())
