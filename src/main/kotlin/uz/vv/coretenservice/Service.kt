@@ -13,7 +13,7 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -57,9 +57,10 @@ class TaskStateService(
 ) {
 
     @Transactional(readOnly = true)
-    fun getAllByBoardId(boardId: UUID): List<TaskState> {
+    fun getAllByBoardId(boardId: UUID): List<TaskStateDto> {
         val board = boardService.getBoard(boardId)
-        return taskStateRepo.findAllByBoardId(board.id!!)
+        val states = taskStateRepo.findAllByBoardId(board.id!!)
+        return states.map { taskState -> taskState.toResponse() }
     }
 
     @Transactional(readOnly = true)
@@ -683,7 +684,7 @@ class TaskService(
     private val boardService: BoardService,
     private val employeeService: EmployeeService,
     private val taskStateService: TaskStateService,
-    private val fileService: FileService,
+    private val fileRepo: FileRepo,
     private val tenantSecurityService: TenantSecurityService,
     private val taskActionService: TaskActionService
 ) : BaseServiceImpl<
@@ -713,23 +714,15 @@ class TaskService(
         return mapper.toResponse(savedTask)
     }
 
-    override fun toEntity(dto: TaskCreateDTO): Task {
-        val board = boardService.getBoard(dto.boardId)
-        val defaultState = taskStateService.getByCode(board.id!!, "NEW")
-        val ownerId = TenantContext.getEmployeeIdOrThrow()
-        val owner = employeeService.getEmployee(ownerId)
-        val dueDate: Instant? = dto.dueDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()
+    override fun toEntity(dto: TaskCreateDTO): Task =
+        buildTask(
+            dto.boardId,
+            dto.title,
+            dto.description,
+            dto.priority,
+            dto.dueDate)
 
-        return Task(
-            title = dto.title,
-            description = dto.description,
-            priority = dto.priority,
-            dueDate = dueDate,
-            state = defaultState,
-            board = board,
-            owner = owner,
-        )
-    }
+
 
     @Transactional
     override fun update(id: UUID, dto: TaskUpdateDTO): TaskResponseDTO {
@@ -765,6 +758,58 @@ class TaskService(
         }
 
         return entity
+    }
+
+    @Transactional
+    fun createWithFiles(dto: TaskCreateWithFilesDTO): TaskResponseDTO {
+        val task = buildTask(
+            dto.boardId,
+            dto.title,
+            dto.description,
+            dto.priority,
+            dto.dueDate)
+
+        if (!dto.fileKeys.isNullOrEmpty()) {
+            val files = fileRepo.findAllByKeyNameInAndDeletedFalse(dto.fileKeys)
+            files.forEach { file ->
+                file.task = task
+                task.files.add(file)
+            }
+        }
+
+        val savedTask = repository.save(task)
+
+        taskActionService.log(
+            savedTask,
+            getCurrentEmployee(),
+            TaskActionType.CREATED,
+            null,
+            "Vazifa fayllar bilan yaratildi"
+        )
+
+        return mapper.toResponse(savedTask)
+    }
+
+    @Transactional
+    fun updateWithFiles(taskId: UUID, dto: TaskUpdateDTO, fileKeys: List<String>?): TaskResponseDTO {
+        val entity = getByIdOrThrow(taskId)
+
+        val updated = updateEntity(dto, entity)
+
+        if (!fileKeys.isNullOrEmpty()) {
+            val newFiles = fileRepo.findAllByKeyNameInAndDeletedFalse(fileKeys)
+
+            val existingKeys = updated.files.map { it.keyName }.toSet()
+            newFiles.forEach { file ->
+                if (!existingKeys.contains(file.keyName)) {
+                    updated.files.add(file)
+                }
+            }
+        }
+
+        val savedTask = repository.save(updated)
+
+        return mapper.toResponse(savedTask)
     }
 
     override fun getByIdOrThrow(id: UUID): Task {
@@ -882,11 +927,34 @@ class TaskService(
 
         repository.trash(task.id!!)
     }
+
+    private fun buildTask(
+        boardId: UUID,
+        title: String,
+        description: String?,
+        priority: TaskPriority?,
+        dueDate: LocalDate?
+    ): Task {
+        val board = boardService.getBoard(boardId)
+        val defaultState = taskStateService.getByCode(board.id!!, "NEW")
+        val owner = getCurrentEmployee()
+        val instant = dueDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()
+
+        return Task(
+            title = title,
+            description = description ?: "",
+            priority = priority ?: TaskPriority.MEDIUM_LOW,
+            dueDate = instant,
+            state = defaultState,
+            board = board,
+            owner = owner
+        )
+    }
 }
 
 
 interface FileService {
-    fun upload(file: MultipartFile): File
+    fun upload(file: MultipartFile): FileDto
     fun download(keyName: String): Resource
     fun getByKey(keyName: String): File
     fun getAllByIds(ids: List<UUID>): List<File>
@@ -918,13 +986,14 @@ class FileServiceImpl(
     }
 
     @Transactional
-    override fun upload(file: MultipartFile): File {
+    override fun upload(file: MultipartFile): FileDto {
         if (file.isEmpty) throw FileEmptyException("File is empty")
         if (file.size > maxSize) throw FileTooLargeException("File size exceeds limit")
 
         val originalName = file.originalFilename ?: "unnamed"
+        val extension = getExtension(originalName)
+        val keyName = "${generateUniqueKey()}$extension"
         val contentType = file.contentType
-        val keyName = generateUniqueKey()
 
         val targetPath = try {
             saveToDisk(file, keyName)
@@ -934,17 +1003,18 @@ class FileServiceImpl(
         }
 
         return try {
-            saveFileToDb(originalName, contentType, keyName, targetPath, file.size)
+            val fileEntity = saveFileToDb(originalName, contentType, keyName, targetPath, file.size)
+            fileEntity.toResponse()
         } catch (ex: Exception) {
             Files.deleteIfExists(targetPath)
-            log.error("Database save failed, rolling back file creation: ${ex.message}")
+            log.error("Database save failed: ${ex.message}")
             throw FileUploadFailedException("Database save failed")
         }
     }
 
     @Transactional
     fun saveFileToDb(orgName: String, contentType: String?, key: String, path: Path, size: Long): File {
-        val type = resolveFileType(contentType)
+        val type = resolveFileType(contentType, orgName)
         return fileRepo.save(
             File(
                 type = type,
@@ -1029,19 +1099,21 @@ class FileServiceImpl(
         throw FileKeyGenerationException("Max key generation attempts exceeded")
     }
 
-    private fun resolveFileType(contentType: String?): FileType =
-        when {
-            contentType == null -> throw InvalidFileTypeException(
-                "Content-Type header is missing"
-            )
+    private fun getExtension(fileName: String): String {
+        val lastDotIndex = fileName.lastIndexOf('.')
+        return if (lastDotIndex > 0) fileName.substring(lastDotIndex) else ""
+    }
 
-            contentType.startsWith("image") -> FileType.IMAGE
-            contentType.startsWith("video") -> FileType.VIDEO
-            else -> {
-                log.warn("Unrecognized content-type '{}', defaulting to DOCUMENT", contentType)
-                FileType.DOCUMENT
-            }
+    private fun resolveFileType(contentType: String?, fileName: String): FileType {
+        val ct = contentType?.lowercase() ?: ""
+        val ext = fileName.lowercase()
+
+        return when {
+            ct.startsWith("image") || listOf(".jpg", ".jpeg", ".png", ".webp", ".gif").any { ext.endsWith(it) } -> FileType.IMAGE
+            ct.startsWith("video") || listOf(".mp4", ".mov", ".avi").any { ext.endsWith(it) } -> FileType.VIDEO
+            else -> FileType.DOCUMENT
         }
+    }
 }
 
 interface TaskActionService {

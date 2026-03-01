@@ -276,6 +276,13 @@ class TaskController(
     fun create(@Valid @RequestBody dto: TaskCreateDTO): ResponseEntity<ResponseVO<TaskResponseDTO>> =
         created(taskService.create(dto), "/api/v1/tasks")
 
+    @PostMapping("/with-files")
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
+    fun createWithFiles(
+        @Valid @RequestBody dto: TaskCreateWithFilesDTO
+    ): ResponseEntity<ResponseVO<TaskResponseDTO>> =
+        created(taskService.createWithFiles(dto), "/api/v1/tasks/with-files")
+
     @GetMapping("/{id}")
     @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getById(@PathVariable id: UUID): ResponseEntity<ResponseVO<TaskResponseDTO>> =
@@ -288,6 +295,15 @@ class TaskController(
         @Valid @RequestBody dto: TaskUpdateDTO
     ): ResponseEntity<ResponseVO<TaskResponseDTO>> =
         ok(taskService.update(id, dto), "/api/v1/tasks/$id")
+
+    @PutMapping("/{id}/files")
+    @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
+    fun updateWithFiles(
+        @PathVariable id: UUID,
+        @Valid @RequestBody dto: TaskUpdateDTO,
+        @RequestParam(required = false) fileKeys: List<String>?
+    ): ResponseEntity<ResponseVO<TaskResponseDTO>> =
+        ok(taskService.updateWithFiles(id, dto, fileKeys), "/api/v1/tasks/$id/files")
 
     @PatchMapping("/{id}/change-state")
     @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
@@ -323,7 +339,7 @@ class TaskController(
     fun getByState(@PathVariable stateId: UUID): ResponseEntity<ResponseVO<List<TaskResponseDTO>>> =
         ok(taskService.getByState(stateId), "/api/v1/tasks/state/$stateId")
 
-    @GetMapping("/my-tasks")
+    @GetMapping("/my")
     @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
     fun getMyTasks(): ResponseEntity<ResponseVO<List<TaskResponseDTO>>> =
         ok(taskService.getMyTasks(), "/api/v1/tasks/my-tasks")
@@ -357,7 +373,7 @@ class TaskStateController(private val taskStateService: TaskStateService) {
 
     @GetMapping("/board/{boardId}")
     @PreAuthorize("@tenantAuth.isAtLeast('EMPLOYEE')")
-    fun getAllByBoard(@PathVariable boardId: UUID): ResponseEntity<ResponseVO<List<TaskState>>> =
+    fun getAllByBoard(@PathVariable boardId: UUID): ResponseEntity<ResponseVO<List<TaskStateDto>>> =
         ok(taskStateService.getAllByBoardId(boardId), "/api/v1/task-states/board/$boardId")
 
     @PostMapping("/{id}/copy-to/{toBoardId}")
@@ -391,7 +407,7 @@ class FileController(private val fileService: FileService) {
 
     @PostMapping("/upload", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     @PreAuthorize("@tenantAuth.isAtLeast('TEAM_LEAD')")
-    fun upload(@RequestParam("file") file: MultipartFile): ResponseEntity<ResponseVO<File>> =
+    fun upload(@RequestParam("file") file: MultipartFile): ResponseEntity<ResponseVO<FileDto>> =
         created(fileService.upload(file), "/api/v1/files/upload")
 
     @GetMapping("/download/{keyName}")

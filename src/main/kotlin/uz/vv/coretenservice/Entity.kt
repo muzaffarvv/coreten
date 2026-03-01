@@ -67,8 +67,6 @@ class User(
     ) : BaseEntity()
 
 
-
-
 @Entity
 @Table(
     name = "employees",
@@ -104,10 +102,6 @@ class Employee(
 ) : BaseEntity()
 
 
-
-
-
-
 @Entity
 @Table(
     name = "tenants", indexes = [
@@ -138,10 +132,6 @@ class Tenant(
 ) : BaseEntity()
 
 
-
-
-
-
 @Entity
 @Table(name = "projects")
 class Project(
@@ -159,11 +149,7 @@ class Project(
     @JoinColumn(name = "tenant_id", nullable = false)
     var tenant: Tenant,
 
-) : BaseEntity()
-
-
-
-
+    ) : BaseEntity()
 
 
 @Entity
@@ -198,7 +184,6 @@ class Board(
 }
 
 
-
 @Entity
 @Table(
     name = "task_states",
@@ -219,9 +204,6 @@ class TaskState(
 ) : BaseEntity()
 
 
-
-
-
 @Entity
 @Table(
     name = "tasks",
@@ -240,9 +222,6 @@ class Task(
 
     @Column(nullable = false, columnDefinition = "TEXT")
     var description: String,
-
-    @Version
-    var version: Long? = null,
 
     @Column(name = "due_date")
     var dueDate: Instant? = null,
@@ -271,15 +250,37 @@ class Task(
     )
     var assignees: MutableSet<Employee> = mutableSetOf(),
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "task_files",
-        joinColumns = [JoinColumn(name = "task_id")],
-        inverseJoinColumns = [JoinColumn(name = "file_id")]
-    )
+    @OneToMany(mappedBy = "task", cascade = [CascadeType.ALL], orphanRemoval = true)
     var files: MutableSet<File> = mutableSetOf()
 
 ) : BaseEntity()
+
+@Entity
+@Table(name = "files")
+class File(
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    var type: FileType,
+
+    @Column(name = "org_name", nullable = false)
+    var orgName: String,
+
+    @Column(name = "key_name", nullable = false, unique = true, length = 128)
+    var keyName: String,
+
+    @Column(nullable = false)
+    var path: String,
+
+    @Column(nullable = false)
+    var size: Int,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "task_id")
+    var task: Task? = null
+
+) : BaseEntity()
+
 
 @Entity
 class TaskAction(
@@ -304,33 +305,6 @@ class TaskAction(
     @Column(length = 150, updatable = false)
     val comment: String? = null
 ) : BaseEntity()
-
-
-@Entity
-@Table(name = "files")
-class File(
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    var type: FileType,
-
-    @Column(name = "org_name", nullable = false)
-    var orgName: String,
-
-    @Column(name = "key_name", nullable = false, unique = true, length = 128)
-    var keyName: String,
-
-    @Column(nullable = false)
-    var path: String,
-
-    @Column(nullable = false)
-    var size: Int
-
-) : BaseEntity()
-
-
-
-
 
 
 @Entity

@@ -252,6 +252,15 @@ data class TaskCreateDTO(
     val boardId: UUID,
 )
 
+data class TaskCreateWithFilesDTO(
+    val boardId: UUID,
+    val title: String,
+    val description: String?,
+    val priority: TaskPriority?,
+    val dueDate: LocalDate?,
+    val fileKeys: List<String>? = null
+)
+
 data class TaskUpdateDTO(
     @field:Size(max = 255, message = "The title is too long")
     val title: String?,

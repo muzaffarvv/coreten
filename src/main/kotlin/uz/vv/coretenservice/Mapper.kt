@@ -20,7 +20,6 @@ class UserMapper : BaseMapper<User, UserResponse> {
             firstName = entity.firstName,
             lastName = entity.lastName,
             phoneNum = entity.phoneNum,
-            // ⚠️ N+1 WARNING: roles va permissions lazy collection — tranzaksiya ichida bo'lishi kerak
             roles = entity.roles.map { it.toResponse() }.toSet()
         )
 

@@ -1,8 +1,6 @@
 package uz.vv.coretenservice
 
 import jakarta.persistence.EntityManager
-import org.springframework.data.domain.Page
-import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.domain.Specification
 import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
@@ -94,11 +92,6 @@ interface BoardRepo : BaseRepo<Board> {
     fun existsByNameAndProjectIdAndDeletedFalse(name: String, projectId: UUID): Boolean
     fun existsByNameAndProjectIdAndIdNotAndDeletedFalse(name: String, projectId: UUID, id: UUID): Boolean
 
-    @Transactional
-    @Modifying
-    @Query("UPDATE Board b SET b.deleted = true WHERE b.project.id = :projectId")
-    fun softDeleteByProjectId(@Param("projectId") projectId: UUID)
-
     // Solution to problem N+1
     @Query(
         """
@@ -167,6 +160,7 @@ interface TaskStateRepo : BaseRepo<TaskState> {
     fun softDeleteByBoardId(@Param("boardId") boardId: UUID)
     fun existsByBoardIdAndCode(boardId: UUID, code: String): Boolean
     fun findByBoardIdAndCode(boardId: UUID, code: String): TaskState?
+    @EntityGraph(attributePaths = ["board", "board.project", "board.project.tenant"])
     fun findAllByBoardId(boardId: UUID): List<TaskState>
 }
 
@@ -175,6 +169,7 @@ interface FileRepo : BaseRepo<File> {
     fun findByKeyNameAndDeletedFalse(keyName: String): File?
     fun existsByKeyNameAndDeletedFalse(keyName: String): Boolean
     fun findAllByIdInAndDeletedFalse(ids: List<UUID>): List<File>
+    fun findAllByKeyNameInAndDeletedFalse(keys: List<String>): List<File>
 }
 
 @Repository
