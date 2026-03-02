@@ -6,6 +6,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
+
 data class UserCreateDTO(
     @field:NotBlank(message = "First name is required")
     @field:Size(min = 2, max = 72, message = "First name must be between 2 and 72 characters")
@@ -56,6 +57,12 @@ data class UserUpdateSecurity(
     val newPassword: String?,
 
     val confirmPassword: String?,
+)
+
+data class UserUpdateRoleDTO(
+    @field:NotNull(message = "New position is required")
+    @field:Pattern(regexp = "^[A-Z_]+$", message = "Role code must contain only uppercase letters and underscores")
+    val roleCode: String
 )
 
 data class UserResponse(
@@ -147,6 +154,12 @@ data class EmployeeResponseDTO(
     val createdAt: Instant,
     val updatedAt: Instant
 )
+
+data class ChangePositionDTO(
+    @field:NotNull(message = "Position is required")
+    val position: Position
+)
+
 
 
 data class ProjectCreateDTO(
@@ -323,10 +336,6 @@ data class FileDto(
     val keyName: String,
 )
 
-data class ChangePositionDTO(
-    @field:NotNull(message = "Position is required")
-    val position: Position
-)
 
 data class LoginRequest(
     @field:NotBlank(message = "Phone number is required")
@@ -374,10 +383,4 @@ data class UserInfo(
 data class TenantInfo(
     val tenantId: UUID,
     val tenantName: String
-)
-
-data class UserUpdateRoleDTO(
-    @field:NotNull(message = "New position is required")
-    @field:Pattern(regexp = "^[A-Z_]+$", message = "Role code must contain only uppercase letters and underscores")
-    val roleCode: String
 )

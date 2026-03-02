@@ -465,9 +465,22 @@ class EmployeeService(
 
     @Transactional(readOnly = true)
     fun getAllByTenantId(id: UUID): List<EmployeeResponseDTO> {
-        tenantSecurityService.validateTenantAccess(id)
-        val employees = repository.findActiveByTenantIdWithTenants(id)
-        return mapper.toListResponse(employees)
+        logger.info("Fetching all employees for Tenant ID: {}", id)
+
+        try {
+            tenantSecurityService.validateTenantAccess(id)
+            val employees = repository.findActiveByTenantIdWithTenants(id)
+
+            logger.info("Successfully retrieved {} employees for Tenant ID: {}", employees.size, id)
+            return mapper.toListResponse(employees)
+
+        } catch (e: AccessDeniedException) {
+            logger.warn("Access denied for Tenant ID: {}. Reason: {}", id, e.message)
+            throw e
+        } catch (e: Exception) {
+            logger.error("Error occurred while fetching employees for Tenant ID: {}", id, e)
+            throw e
+        }
     }
 
     override fun getByIdOrThrow(id: UUID): Employee {
@@ -720,8 +733,8 @@ class TaskService(
             dto.title,
             dto.description,
             dto.priority,
-            dto.dueDate)
-
+            dto.dueDate
+        )
 
 
     @Transactional
@@ -767,7 +780,8 @@ class TaskService(
             dto.title,
             dto.description,
             dto.priority,
-            dto.dueDate)
+            dto.dueDate
+        )
 
         if (!dto.fileKeys.isNullOrEmpty()) {
             val files = fileRepo.findAllByKeyNameInAndDeletedFalse(dto.fileKeys)
@@ -825,10 +839,13 @@ class TaskService(
 
     @Transactional
     fun assignEmployee(taskId: UUID, employeeId: UUID): TaskResponseDTO {
+        logger.info("Attempting to assign employee {} to task {}", employeeId, taskId)
+
         val task = getByIdOrThrow(taskId)
         val employee = employeeService.getEmployee(employeeId)
 
         if (task.assignees.any { it.id == employeeId }) {
+            logger.warn("Assign failed: Employee {} already assigned to task {}", employeeId, taskId)
             throw BadRequestException("Employee is already assigned to this task")
         }
 
@@ -844,16 +861,21 @@ class TaskService(
             "Assigned new employee"
         )
 
+        logger.info("Successfully assigned employee {} to task {}", employeeId, taskId)
         return mapper.toResponse(savedTask)
     }
 
     @Transactional
     fun unassignEmployee(taskId: UUID, employeeId: UUID): TaskResponseDTO {
+        logger.info("Attempting to unassign employee {} from task {}", employeeId, taskId)
+
         val task = getByIdOrThrow(taskId)
-        employeeService.getEmployee(employeeId)
 
         val removed = task.assignees.removeIf { it.id == employeeId }
-        if (!removed) throw EmployeeNotFoundException("Employee not assigned to task")
+        if (!removed) {
+            logger.error("Unassign failed: Employee {} was not found in task {} assignees", employeeId, taskId)
+            throw EmployeeNotFoundException("Employee not assigned to task")
+        }
 
         val savedTask = repository.saveAndRefresh(task)
 
@@ -865,6 +887,7 @@ class TaskService(
             null
         )
 
+        logger.info("Successfully unassigned employee {} from task {}", employeeId, taskId)
         return mapper.toResponse(savedTask)
     }
 
@@ -872,6 +895,7 @@ class TaskService(
     fun changeState(taskId: UUID, newStateCode: String): TaskResponseDTO {
         val task = getByIdOrThrow(taskId)
         val oldState = task.state.name
+        logger.info("Changing task {} state from {} to {}", taskId, oldState, newStateCode)
 
         val boardId = task.board.id!!
         val newState = taskStateService.getByCode(boardId, newStateCode)
@@ -887,6 +911,7 @@ class TaskService(
             newState.name
         )
 
+        logger.info("Task {} state successfully updated to {}", taskId, newState.name)
         return mapper.toResponse(savedTask)
     }
 
@@ -971,8 +996,6 @@ class FileServiceImpl(
     private val maxSize: Long
 ) : FileService {
 
-    private val log = LoggerFactory.getLogger(javaClass)
-
     companion object {
         private const val MAX_RETRIES = 10
     }
@@ -981,7 +1004,7 @@ class FileServiceImpl(
         val path = basePath()
         if (!Files.exists(path)) {
             Files.createDirectories(path)
-            log.info("Upload directory created: {}", path.toAbsolutePath())
+            logger.info("Upload directory created: {}", path.toAbsolutePath())
         }
     }
 
@@ -998,7 +1021,7 @@ class FileServiceImpl(
         val targetPath = try {
             saveToDisk(file, keyName)
         } catch (ex: Exception) {
-            log.error("Disk write failed: ${ex.message}")
+            logger.error("Disk write failed: ${ex.message}")
             throw FileUploadFailedException("Disk write failed")
         }
 
@@ -1007,7 +1030,7 @@ class FileServiceImpl(
             fileEntity.toResponse()
         } catch (ex: Exception) {
             Files.deleteIfExists(targetPath)
-            log.error("Database save failed: ${ex.message}")
+            logger.error("Database save failed: ${ex.message}")
             throw FileUploadFailedException("Database save failed")
         }
     }
@@ -1063,7 +1086,7 @@ class FileServiceImpl(
         file.deleted = true
         fileRepo.save(file)
 
-        log.info("File marked as deleted with id: {}", id)
+        logger.info("File marked as deleted with id: {}", id)
     }
 
     @Transactional
@@ -1074,7 +1097,7 @@ class FileServiceImpl(
         file.deleted = true
         fileRepo.save(file)
 
-        log.info("File marked as deleted with keyName: {}", keyName)
+        logger.info("File marked as deleted with keyName: {}", keyName)
     }
 
     private fun saveToDisk(file: MultipartFile, keyName: String): Path {
@@ -1109,7 +1132,14 @@ class FileServiceImpl(
         val ext = fileName.lowercase()
 
         return when {
-            ct.startsWith("image") || listOf(".jpg", ".jpeg", ".png", ".webp", ".gif").any { ext.endsWith(it) } -> FileType.IMAGE
+            ct.startsWith("image") || listOf(
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".webp",
+                ".gif"
+            ).any { ext.endsWith(it) } -> FileType.IMAGE
+
             ct.startsWith("video") || listOf(".mp4", ".mov", ".avi").any { ext.endsWith(it) } -> FileType.VIDEO
             else -> FileType.DOCUMENT
         }

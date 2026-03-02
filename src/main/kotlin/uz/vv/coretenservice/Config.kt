@@ -83,7 +83,6 @@ class SecurityConfig(
                         "/auth/login",
                         "/auth/me",
                         "/auth/refresh",
-                        "/error",
                         "/actuator/health"
                     ).permitAll()
                     .anyRequest().authenticated()

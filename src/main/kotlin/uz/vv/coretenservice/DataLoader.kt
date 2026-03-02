@@ -1,6 +1,7 @@
 package uz.vv.coretenservice
 
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.CommandLineRunner
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.context.SecurityContextHolder
@@ -12,14 +13,25 @@ class SecurityDataInitializer(
     private val roleService: RoleService,
     private val permissionService: PermissionService,
     private val userRepo: UserRepo,
-    private val passwordEncoder: PasswordEncoderConfig
+    private val passwordEncoder: PasswordEncoderConfig,
+
+    @Value("\${system.super-admin.id}")
+    private val systemSuperAdminId: String,
+
+    @Value("\${system.super-admin.phone}")
+    private val adminPhone: String,
+
+    @Value("\${system.super-admin.password}")
+    private val adminPassword: String,
+
+    @Value("\${system.super-admin.first-name}")
+    private val adminFirstName: String,
+
+    @Value("\${system.super-admin.last-name}")
+    private val adminLastName: String
 ) : CommandLineRunner {
 
     private val logger = LoggerFactory.getLogger(SecurityDataInitializer::class.java)
-
-    companion object {
-        private val SYSTEM_SUPER_ADMIN_ID = UUID.fromString("00000000-0000-0000-0000-000000000000")
-    }
 
     override fun run(vararg args: String?) {
         logger.info("Initializing SYSTEM security data...")
@@ -42,7 +54,7 @@ class SecurityDataInitializer(
 
     private fun setupSystemSecurityContext() {
         val systemUser = CustomUserDetails(
-            userId = SYSTEM_SUPER_ADMIN_ID,
+            userId = UUID.fromString(systemSuperAdminId),
             phoneNum = "system",
             password = "",
             firstName = "System",
@@ -56,15 +68,14 @@ class SecurityDataInitializer(
     }
 
     private fun createSuperAdminUser() {
-        val adminPhone = "998101001010"
         if (userRepo.findByPhoneNumAndDeletedFalse(adminPhone) == null) {
             val superRole = roleService.getByCode("SUPER_ADMIN")
 
             val admin = User(
-                firstName = "Super",
-                lastName = "Admin",
+                firstName = adminFirstName,
+                lastName = adminLastName,
                 phoneNum = adminPhone,
-                password = passwordEncoder.passwordEncoder().encode("SuperAdminPass6785@"),
+                password = passwordEncoder.passwordEncoder().encode(adminPassword),
                 roles = mutableSetOf(superRole)
             )
             userRepo.save(admin)

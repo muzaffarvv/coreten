@@ -25,13 +25,7 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
-    naming:
-      physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
 
-app:
-  file:
-    upload-dir: ${UPLOAD_DIR:uploads}
-    max-size-bytes: 10485760
 jwt:
   secret: ${JWT_SECRET:ASCHBACSYEFQKLFASHKBCASCBJXDE@#0908ASKJCNAKSJCBKASJBCKASCJVASHCAKSBCKJASC8878ASCKJ}
   issuer: ${JWT_ISSUER:coreten-service}
@@ -45,6 +39,14 @@ jwt:
 
   # 604 800 000 ms = 10 080 minute = 168 hour = 7 kun
   refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000}
+
+system:
+  super-admin:
+    id: ${SUPER_ADMIN_ID:00000000-0000-0000-0000-000000000000}
+    phone: ${SUPER_ADMIN_PHONE:998101001010}
+    password: ${SUPER_ADMIN_PASSWORD:SuperAdminPass6785@}
+    first-name: Super
+    last-name: Admin
 
 server:
   servlet:

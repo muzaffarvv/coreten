@@ -66,11 +66,14 @@ interface UserRepo : BaseRepo<User> {
 interface EmployeeRepo : BaseRepo<Employee> {
     fun countByTenantsIdAndActiveTrueAndDeletedFalse(tenantId: UUID): Int
     fun findByUserIdAndDeletedFalse(userId: UUID): Employee?
-    @Query("""
+
+    @Query(
+        """
         SELECT DISTINCT e FROM Employee e
         JOIN FETCH e.tenants t
         WHERE t.id = :tenantId AND e.active = true AND e.deleted = false
-    """)
+    """
+    )
     fun findActiveByTenantIdWithTenants(@Param("tenantId") tenantId: UUID): List<Employee>
 }
 
@@ -118,7 +121,9 @@ interface BoardRepo : BaseRepo<Board> {
 interface TaskRepo : BaseRepo<Task> {
     @EntityGraph(attributePaths = ["assignees", "state", "board"])
     fun findTaskByIdAndDeletedFalse(id: UUID): Task?
-    @Query("""
+
+    @Query(
+        """
     select distinct t from Task t
     join t.assignees a
     join t.board b
@@ -126,20 +131,25 @@ interface TaskRepo : BaseRepo<Task> {
     where a.id = :employeeId
       and p.tenant.id = :tenantId
       and t.deleted = false
-""")
+"""
+    )
     fun findAllAssignedTasks(
         @Param("employeeId") employeeId: UUID,
         @Param("tenantId") tenantId: UUID
     ): List<Task>
-    @Query("""
+
+    @Query(
+        """
         SELECT DISTINCT t FROM Task t
         LEFT JOIN FETCH t.assignees
         LEFT JOIN FETCH t.files
         WHERE t.board.id = :boardId AND t.deleted = false
-    """)
+    """
+    )
     fun findAllByBoardIdWithAssigneesAndFiles(@Param("boardId") boardId: UUID): List<Task>
     fun findAllByStateIdAndDeletedFalse(stateId: UUID): List<Task>
     fun countByStateIdAndDeletedFalse(stateId: UUID): Long
+
     @Transactional
     @Modifying
     @Query("UPDATE Task t SET t.deleted = true WHERE t.board.id = :boardId")
@@ -147,7 +157,7 @@ interface TaskRepo : BaseRepo<Task> {
 }
 
 @Repository
-interface TaskActionRepo: BaseRepo<TaskAction> {
+interface TaskActionRepo : BaseRepo<TaskAction> {
     @EntityGraph(attributePaths = ["modifier.user", "task"])
     fun findAllByTaskId(taskId: UUID): List<TaskAction>
 }
@@ -160,6 +170,7 @@ interface TaskStateRepo : BaseRepo<TaskState> {
     fun softDeleteByBoardId(@Param("boardId") boardId: UUID)
     fun existsByBoardIdAndCode(boardId: UUID, code: String): Boolean
     fun findByBoardIdAndCode(boardId: UUID, code: String): TaskState?
+
     @EntityGraph(attributePaths = ["board", "board.project", "board.project.tenant"])
     fun findAllByBoardId(boardId: UUID): List<TaskState>
 }

@@ -95,6 +95,7 @@ class UserController(private val userService: UserService) {
     fun getAll(): ResponseEntity<ResponseVO<List<UserResponse>>> = ok(userService.getAllList(), "/api/v1/users")
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'SUPER_ADMIN')")
     fun delete(@PathVariable id: UUID): ResponseEntity<Void> {
         userService.delete(id)
         return noContent()
