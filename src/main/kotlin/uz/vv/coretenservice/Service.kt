@@ -208,8 +208,13 @@ class UserService(
 
     @Transactional
     override fun create(dto: UserCreateDTO): UserResponse {
-        if (repository.existsByPhoneNumAndDeletedFalse(dto.phoneNum)) {
-            throw DuplicateResourceException("User already exists with phone number ${dto.phoneNum}")
+        /** * xatolik ketibdi shu yerda: deleted = false sharti olib tashlanishi kerak. 
+        * agar foydalanuvchi avval o'chirilgan bo'lsa (deleted = true), 
+        * bazada ushbu telefon raqami baribir mavjud bo'ladi va 
+        * yangi foydalanuvchi ochishda Unique Constraint xatoligini keltirib chiqaradi.
+        */
+        if (repository.existsByPhoneNum(dto.phoneNum)) { 
+            throw DuplicateResourceException("User already exists with phone number ${dto.phoneNum}")  
         }
 
         if (dto.password != dto.confirmPassword) {
