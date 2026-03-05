@@ -58,6 +58,7 @@ class BaseRepoImpl<T : BaseEntity>(
 
 @Repository
 interface UserRepo : BaseRepo<User> {
+    fun existsByPhoneNum(phoneNum: String): Boolean
     fun existsByPhoneNumAndDeletedFalse(phoneNum: String): Boolean
     fun findByPhoneNumAndDeletedFalse(phoneNum: String): User?
 }
